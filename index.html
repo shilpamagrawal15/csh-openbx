@@ -1085,6 +1085,9 @@
                 ❓ Ask Question
             </button>
 
+            <!-- [DB] account login so saved resources follow the user -->
+            <button class="admin-btn" id="btnAccount" onclick="openAccountModal()">👤 Log In</button>
+
             <button class="admin-btn" onclick="openAdminModal()">🔒 Admin Access</button>
         </div>
     </header>
@@ -1230,6 +1233,12 @@
                 <button class="close-modal" onclick="closeModal('adminAuthModal')">✕</button>
             </div>
 
+            <!-- [DB] staff email (admin or counselor account) -->
+            <div class="wf-form-group">
+                <label>Staff Email</label>
+                <input type="email" id="adminEmailInput" placeholder="admin@openbx.org">
+            </div>
+
             <div class="wf-form-group">
                 <label>Enter Admin Password</label>
                 <input type="password" id="adminPasswordInput" placeholder="Password required...">
@@ -1272,6 +1281,40 @@
             <div style="display: flex; gap: 10px; justify-content: space-between; margin-top: 10px;">
                 <button class="btn-secondary-wf" onclick="clearAllAdminQuestions()" style="color: red; border-color: red;">Clear All Logged Questions</button>
                 <button class="btn-primary-wf" onclick="closeModal('adminDashboardModal')">Close Panel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- [DB] Modal 4: Account Login / Signup -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="wf-modal">
+            <div class="modal-header">
+                <div class="modal-title" id="loginModalTitle">👤 Log In</div>
+                <button class="close-modal" onclick="closeModal('loginModal')">✕</button>
+            </div>
+
+            <p style="font-size: 13px; line-height: 1.45; color: var(--text-muted);">
+                Log in to keep your saved centers on any device.
+            </p>
+
+            <div class="wf-form-group" id="signupNameGroup" style="display: none;">
+                <label>Your Name</label>
+                <input type="text" id="signupNameInput" placeholder="First and last name">
+            </div>
+
+            <div class="wf-form-group">
+                <label>Email</label>
+                <input type="email" id="loginEmailInput" placeholder="you@example.com">
+            </div>
+
+            <div class="wf-form-group">
+                <label>Password</label>
+                <input type="password" id="loginPasswordInput" placeholder="Password...">
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: space-between; align-items: center; margin-top: 10px;">
+                <button class="btn-secondary-wf" id="btnToggleSignup" onclick="toggleSignupMode()">New here? Create an account</button>
+                <button class="btn-primary-wf" id="btnLoginSubmit" onclick="submitLogin()">Log In</button>
             </div>
         </div>
     </div>
@@ -1496,349 +1539,68 @@
         let markersGroup = null;
         let radiusCircle = null;
 
-        const ADMIN_PASSWORD_HASH = "447walesave";
+        /* [DB] Admin access now uses a real staff login (POST /api/login, role admin/counselor)
+           instead of a password stored in the page. */
+        let currentUser = null; // set from GET /api/me or after logging in
 
-        let userQuestionsList = [
-            {
-                timestamp: "09/01 10:15 AM",
-                lang: "Spanish",
-                question: "Necesito comida de emergencia para mi familia cerca de Mott Haven.",
-                phone: "(718) 555-0199",
-                status: "Pending"
+        /* [DB] Small fetch helper for the JSON API */
+        async function apiFetch(url, options = {}) {
+            const opts = Object.assign({ credentials: 'same-origin', headers: {} }, options);
+            if (opts.body && typeof opts.body !== 'string') {
+                opts.headers['Content-Type'] = 'application/json';
+                opts.body = JSON.stringify(opts.body);
             }
-        ];
+            const resp = await fetch(url, opts);
+            let data = null;
+            try { data = await resp.json(); } catch (e) { /* empty body */ }
+            if (!resp.ok) throw new Error((data && data.error) || ('Request failed (' + resp.status + ')'));
+            return data;
+        }
+
+        /* [DB] Escape user-submitted text before putting it into innerHTML */
+        function escapeHTML(str) {
+            return String(str == null ? '' : str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        /* [DB] Load resources from the database */
+        async function loadResourcesFromAPI() {
+            try {
+                resources = await apiFetch('/api/resources');
+            } catch (e) {
+                showToast("Could not load resources from the server.");
+            }
+        }
+
+        /* [DB] Restore a logged-in session and use the account's saved resources */
+        async function loadCurrentUser() {
+            try {
+                const data = await apiFetch('/api/me');
+                setCurrentUser(data.user);
+            } catch (e) { /* stay a guest */ }
+        }
+
+        function setCurrentUser(user) {
+            currentUser = user;
+            const btn = document.getElementById("btnAccount");
+            if (user) {
+                savedCenterIds = user.saved_resources.slice();
+                btn.innerText = "👤 " + user.full_name.split(" ")[0] + " (Log Out)";
+            } else {
+                btn.innerText = "👤 Log In";
+            }
+            document.getElementById("savedCount").innerText = savedCenterIds.length;
+            renderFullListView();
+            renderSavedListView();
+        }
+
+        /* [DB] Filled from GET /api/questions when a staff member opens the admin panel */
+        let userQuestionsList = [];
 
         /* Extended Bronx Resources with Exact Geographic Coordinates */
-        const resources = [
-            {
-                id: "bx_food_1",
-                name: {
-                    en: "POTS (Part of the Solution) Community Center",
-                    es: "Centro Comunitario POTS (Parte de la Solución)",
-                    vi: "Trung tâm Cộng đồng POTS",
-                    zh: "POTS (解决方案的一部分) 社区中心",
-                    ar: "مركز POTS المجتمعي"
-                },
-                category: "food",
-                emoji: "🍞",
-                lat: 40.8653,
-                lng: -73.8887,
-                address: "2759 Webster Ave, Bronx, NY 10458",
-                neighborhood: "Fordham / Bedford Park",
-                phone: "(718) 220-4892",
-                openStatus: {
-                    en: "Open Today • Hot Meals & Food Pantry",
-                    es: "Abierto Hoy • Comida Caliente y Despensa",
-                    vi: "Mở cửa hôm nay • Bữa ăn nóng & Kho thực phẩm",
-                    zh: "今天开放 • 热食和食品分发处",
-                    ar: "مفتوح اليوم • وجبات ساخنة وبنك طعام"
-                },
-                openNow: true,
-                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
-                hours: { "Mon - Sat": "9:00 AM - 3:30 PM", "Sunday": "Closed" },
-                aiSummary: {
-                    en: "Top match in Fordham for free hot meals, emergency grocery boxes, shower facilities, legal aid, and social work services. No ID required.",
-                    es: "La mejor opción en Fordham para comidas calientes gratuitas, cajas de alimentos de emergencia, duchas, ayuda legal y servicios sociales. No requiere ID.",
-                    vi: "Lựa chọn hàng đầu tại Fordham cho các bữa ăn nóng miễn phí, hộp thực phẩm khẩn cấp, vòi sen, trợ giúp pháp lý. Không cần ID.",
-                    zh: "Fordham 免费热食、紧急食品包、淋浴设施、法律援助和社会工作服务的最佳选择。无需身份证。",
-                    ar: "أفضل خيار في فوردهام للحصول على وجبات ساخنة مجانية، وصناديق طعام طارئة، ومرافق استحمام، ومساعدة قانونية. لا تتطلب بطاقة هوية."
-                },
-                services: {
-                    en: ["Hot Meals Dining Room", "Food Pantry Boxes", "Showers & Mail Services", "Legal & Case Management"],
-                    es: ["Comedor de Comidas Calientes", "Cajas de Despensa de Alimentos", "Servicios de Ducha y Correo", "Gestión Legal y de Casos"],
-                    vi: ["Phòng ăn bữa ăn nóng", "Hộp thực phẩm", "Dịch vụ tắm & Thư từ", "Trợ giúp pháp lý"],
-                    zh: ["热食餐厅", "食品分发包", "淋浴和邮寄服务", "法律和案件管理"],
-                    ar: ["قاعة الوجبات الساخنة", "صناديق بنك الطعام", "خدمات الاستحمام والبريد", "المساعدة القانونية"]
-                }
-            },
-            {
-                id: "bx_rehab_1",
-                name: {
-                    en: "Samaritan Daytop Village - Grand Concourse Recovery Center",
-                    es: "Samaritan Daytop Village - Centro de Recuperación Grand Concourse",
-                    vi: "Trung tâm Phục hồi Samaritan Daytop Village",
-                    zh: "Samaritan Daytop Village - Grand Concourse 康复中心",
-                    ar: "قرية ساماريتان دايتوب - مركز التعافي"
-                },
-                category: "rehab",
-                emoji: "🌱",
-                lat: 40.8492,
-                lng: -73.9084,
-                address: "1910 Grand Concourse, Bronx, NY 10453",
-                neighborhood: "Grand Concourse / Tremont",
-                phone: "(718) 294-2700",
-                openStatus: {
-                    en: "Open 24/7 • Outpatient & Counseling",
-                    es: "Abierto 24/7 • Pacientes Externos y Asesoramiento",
-                    vi: "Mở cửa 24/7 • Ngoại trú & Tư vấn",
-                    zh: "24/7 开放 • 门诊与咨询",
-                    ar: "مفتوح 24/7 • العيادات الخارجية والاستشارات"
-                },
-                openNow: true,
-                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
-                hours: { "Monday - Sunday": "24 Hours / 7 Days" },
-                aiSummary: {
-                    en: "Confidential recovery programs, opioid treatment, outpatient substance abuse counseling, and peer support groups. Walk-in intakes welcome.",
-                    es: "Programas confidenciales de recuperación, tratamiento de opioides, asesoramiento ambulatorio y grupos de apoyo. Se aceptan pacientes sin cita.",
-                    vi: "Các chương trình phục hồi bảo mật, điều trị nghiện, tư vấn ngoại trú và nhóm hỗ trợ đồng đẳng. Hoan nghênh đến trực tiếp.",
-                    zh: "保密的康复项目、鸦片类药物治疗、门诊戒瘾咨询和同伴支持小组。欢迎直接前往。",
-                    ar: "برامج تعافي سرية، علاج الإدمان، استشارات خارجية، ومجموعات دعم. نرحب بالدخول بدون موعد."
-                },
-                services: {
-                    en: ["24/7 Crisis Intake", "Outpatient Recovery", "Peer Support Groups", "Family Counseling"],
-                    es: ["Entrada de Crisis 24/7", "Recuperación Ambulatoria", "Grupos de Apoyo", "Asesoramiento Familiar"],
-                    vi: ["Tiếp nhận khủng hoảng 24/7", "Phục hồi ngoại trú", "Nhóm hỗ trợ đồng đẳng", "Tư vấn gia đình"],
-                    zh: ["24/7 危机接收", "门诊康复", "同伴支持小组", "家庭咨询"],
-                    ar: ["استقبال الأزمات 24/7", "التعافي الخارجي", "مجموعات الدعم", "الاستشارات العائلية"]
-                }
-            },
-            {
-                id: "bx_emp_1",
-                name: {
-                    en: "BronxWorks Workforce Development Center",
-                    es: "Centro de Desarrollo Laboral BronxWorks",
-                    vi: "Trung tâm Phát triển Lực lượng Lao động BronxWorks",
-                    zh: "BronxWorks 劳动力发展中心",
-                    ar: "مركز BronxWorks لتطوير القوى العاملة"
-                },
-                category: "jobs",
-                emoji: "💼",
-                lat: 40.8148,
-                lng: -73.9103,
-                address: "630 Jackson Ave, Bronx, NY 10455",
-                neighborhood: "Mott Haven",
-                phone: "(718) 292-2300",
-                openStatus: {
-                    en: "Open Mon-Fri • Career Services",
-                    es: "Abierto Lun-Vie • Servicios de Carrera",
-                    vi: "Mở cửa Thứ 2 - Thứ 6 • Dịch vụ sự nghiệp",
-                    zh: "周一至周五开放 • 职业服务",
-                    ar: "مفتوح من الاثنين إلى الجمعة • خدمات التطوير المهني"
-                },
-                openNow: true,
-                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
-                hours: { "Mon - Fri": "9:00 AM - 5:00 PM", "Sat - Sun": "Closed" },
-                aiSummary: {
-                    en: "Free job placement assistance, resume workshops, career coaching, computer literacy training, and youth employment connection.",
-                    es: "Asistencia gratuita para colocación laboral, talleres de currículum, entrenamiento informático y programas de empleo juvenil.",
-                    vi: "Hỗ trợ tìm việc miễn phí, hội thảo viết CV, huấn luyện nghề nghiệp, đào tạo tin học và kết nối việc làm cho thanh thiếu niên.",
-                    zh: "免费就业推荐协助、简历写作工作坊、职业辅导、计算机技能培训和青年就业对接。",
-                    ar: "مساعدة مجانية في التوظيف، ورش عمل للسيرة الذاتية، تدريب على الكمبيوتر، وتوظيف الشباب."
-                },
-                services: {
-                    en: ["Job Search Assistance", "Resume Building", "Interview Prep", "Youth Career Placement"],
-                    es: ["Búsqueda de Empleo", "Creación de Currículum", "Preparación de Entrevistas", "Empleo Juvenil"],
-                    vi: ["Hỗ trợ tìm việc", "Xây dựng CV", "Luyện phỏng vấn", "Việc làm thanh niên"],
-                    zh: ["求职协助", "简历制作", "面试准备", "青年职业推荐"],
-                    ar: ["المساعدة في البحث عن عمل", "بناء السيرة الذاتية", "التحضير للمقابلات", "توظيف الشباب"]
-                }
-            },
-            {
-                id: "bx_health_1",
-                name: {
-                    en: "NYC Health + Hospitals / Lincoln",
-                    es: "NYC Health + Hospitals / Lincoln",
-                    vi: "Bệnh viện NYC Health + Hospitals / Lincoln",
-                    zh: "纽约市健康+医院 / 林肯医院",
-                    ar: "مستشفى لينكولن - نيويورك هيلث"
-                },
-                category: "health",
-                emoji: "🩺",
-                lat: 40.8176,
-                lng: -73.9242,
-                address: "234 E 149th St, Bronx, NY 10451",
-                neighborhood: "Mott Haven / South Bronx",
-                phone: "(718) 579-5000",
-                openStatus: {
-                    en: "Open 24/7 • Emergency & Primary Care",
-                    es: "Abierto 24/7 • Emergencias y Atención Primaria",
-                    vi: "Mở cửa 24/7 • Cấp cứu & Chăm sóc ban đầu",
-                    zh: "24/7 开放 • 急诊与急救",
-                    ar: "مفتوح 24/7 • الطوارئ والرعاية الأولية"
-                },
-                openNow: true,
-                requirements: { noID: false, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
-                hours: { "Monday - Sunday": "24 Hours / 7 Days" },
-                aiSummary: {
-                    en: "Major public hospital in the South Bronx providing full health coverage regardless of immigration status or ability to pay.",
-                    es: "Hospital público principal en el Sur del Bronx que brinda cobertura de salud completa independientemente del estado migratorio o capacidad de pago.",
-                    vi: "Bệnh viện công lớn tại South Bronx cung cấp dịch vụ y tế đầy đủ bất kể tình trạng di trú hay khả năng chi trả.",
-                    zh: "南布朗克斯的主要公立医院，无论移民身份或支付能力如何，均提供全面医疗服务。",
-                    ar: "مستشفى عمومی رئيسي في جنوب برونكس يقدم رعاية صحية كاملة بغض النظر عن وضع الهجرة أو القدرة على الدفع."
-                },
-                services: {
-                    en: ["24/7 Emergency Room", "Pediatric Care", "Financial Rx Assistance", "MTA 2/4/5 Subway Nearby"],
-                    es: ["Sala de Emergencias 24/7", "Atención Pediátrica", "Asistencia Financiera para Recetas", "Metro MTA 2/4/5 Cerca"],
-                    vi: ["Phòng cấp cứu 24/7", "Chăm sóc nhi khoa", "Hỗ trợ tài chính đơn thuốc", "Gần tàu điện ngầm 2/4/5"],
-                    zh: ["24/7 急诊室", "儿科护理", "处方药财务资助", "靠近 MTA 2/4/5 地铁"],
-                    ar: ["غرفة طوارئ 24/7", "رعاية الأطفال", "مساعدة مالية للأدوية", "قريب من مترو الأنفاق"]
-                }
-            },
-            {
-                id: "bx_edu_1",
-                name: {
-                    en: "Hostos Community College - Adult Learning",
-                    es: "Colegio Comunitario Hostos - Educación de Adultos",
-                    vi: "Trường Cao đẳng Cộng đồng Hostos - Giáo dục người lớn",
-                    zh: "Hostos 社区学院 - 成人教育",
-                    ar: "كلية هوستوس المجتمعية - تعليم الكبار"
-                },
-                category: "education",
-                emoji: "📚",
-                lat: 40.8136,
-                lng: -73.9108,
-                address: "564 Jackson Ave, Bronx, NY 10454",
-                neighborhood: "Mott Haven",
-                phone: "(718) 518-6656",
-                openStatus: {
-                    en: "Open Mon-Sat • Free Adult Education",
-                    es: "Abierto Lun-Sáb • Educación Gratuita para Adultos",
-                    vi: "Mở cửa Thứ 2 - Thứ 7 • Giáo dục người lớn miễn phí",
-                    zh: "周一至周六开放 • 免费成人教育",
-                    ar: "مفتوح من الاثنين إلى السبت • تعليم مجاني للكبار"
-                },
-                openNow: true,
-                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
-                hours: { "Mon - Thu": "9:00 AM - 8:00 PM", "Fri - Sat": "9:00 AM - 2:00 PM" },
-                aiSummary: {
-                    en: "Free HSE/GED test prep, English as a Second Language (ESL), college prep courses, and vocational career certification.",
-                    es: "Preparación gratuita para el examen HSE/GED, Inglés como Segundo Idioma (ESL) y certificaciones vocacionales.",
-                    vi: "Luyện thi HSE/GED miễn phí, tiếng Anh ESL, các khóa học chuẩn bị vào cao đẳng và chứng chỉ nghề nghiệp.",
-                    zh: "免费 HSE/GED 备考、英语 ESL 课程、大学预科课程和职业技能认证。",
-                    ar: "تحضير مجاني لاختبارات GED/HSE، تعليم اللغة الإنجليزية ESL، ودورات مهنية."
-                },
-                services: {
-                    en: ["Free HSE / GED Prep", "ESL Classes", "Computer Training", "MTA 2/4/5 Subway Accessible"],
-                    es: ["Preparación HSE / GED Gratuita", "Clases de ESL", "Entrenamiento en Computación", "Accesible por Metro"],
-                    vi: ["Luyện thi HSE / GED", "Lớp học ESL", "Đào tạo máy tính", "Gần tàu điện ngầm"],
-                    zh: ["免费 HSE / GED 备考", "ESL 英语班", "计算机培训", "靠近地铁"],
-                    ar: ["تحضير مجاني لـ GED", "فصول لغة إنجليزية", "تدريب كمبيوتر", "مترو قريب"]
-                }
-            },
-            {
-                id: "bx_health_2",
-                name: {
-                    en: "St. Barnabas Hospital (SBH Health System)",
-                    es: "Hospital St. Barnabas (Sistema de Salud SBH)",
-                    vi: "Bệnh viện St. Barnabas",
-                    zh: "圣巴拿巴医院 (SBH 医疗系统)",
-                    ar: "مستشفى سانت بارناباس"
-                },
-                category: "health",
-                emoji: "🩺",
-                lat: 40.8524,
-                lng: -73.8926,
-                address: "4422 3rd Ave, Bronx, NY 10457",
-                neighborhood: "Belmont / Tremont",
-                phone: "(718) 960-9000",
-                openStatus: {
-                    en: "Open 24/7 • Community Care & ER",
-                    es: "Abierto 24/7 • Atención Comunitario y Urgencias",
-                    vi: "Mở cửa 24/7 • Cấp cứu & Y tế cộng đồng",
-                    zh: "24/7 开放 • 社区医疗与急诊",
-                    ar: "مفتوح 24/7 • العيادات والطوارئ"
-                },
-                openNow: true,
-                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
-                hours: { "Monday - Sunday": "24 Hours / 7 Days" },
-                aiSummary: {
-                    en: "Comprehensive safety-net hospital providing urgent care, dental clinic, mental health services, and multilingual support.",
-                    es: "Hospital comunitario integral que ofrece urgencias, clínica dental, atención psicológica y personal bilingüe.",
-                    vi: "Bệnh viện an sinh xã hội toàn diện cung cấp dịch vụ chăm sóc khẩn cấp, nha khoa, tâm thần và hỗ trợ đa ngôn ngữ.",
-                    zh: "综合性安全网医院，提供急诊护理、牙科诊所、心理健康服务和多语言支持。",
-                    ar: "مستشفى شامل يقدم رعاية عاجلة، عيادة أسنان، خدمات الصحة النفسية، ودعم بلغات متعددة."
-                },
-                services: {
-                    en: ["24/7 Trauma Center", "Dental & Mental Health", "Bilingual Navigators", "Walk-in Urgent Clinic"],
-                    es: ["Centro de Traumatología", "Salud Mental y Dental", "Orientadores Bilingües", "Clínica de Urgencias"],
-                    vi: ["Trung tâm cấp cứu", "Nha khoa & Tâm thần", "Hướng dẫn viên song ngữ", "Phòng khám trực tiếp"],
-                    zh: ["24/7 创伤中心", "牙科与心理健康", "双语服务人员", "免预约门诊"],
-                    ar: ["مركز طوارئ 24/7", "عيادة الأسنان والصحة النفسية", "مرشدون بليغون", "عيادة عاجلة"]
-                }
-            },
-            {
-                id: "bx_edu_2",
-                name: {
-                    en: "NYPL Bronx Library Center",
-                    es: "Centro de Bibliotecas del Bronx de la NYPL",
-                    vi: "Trung tâm Thư viện Bronx NYPL",
-                    zh: "纽约公共图书馆布朗克斯中心",
-                    ar: "مركز مكتبة برونكس العامة"
-                },
-                category: "education",
-                emoji: "📚",
-                lat: 40.8625,
-                lng: -73.8938,
-                address: "310 E Kingsbridge Rd, Bronx, NY 10458",
-                neighborhood: "Kingsbridge / Fordham",
-                phone: "(718) 579-4244",
-                openStatus: {
-                    en: "Open Today • Free Wi-Fi & Tech Access",
-                    es: "Abierto Hoy • Wi-Fi Gratis y Tecnología",
-                    vi: "Mở cửa hôm nay • Wi-Fi & Máy tính miễn phí",
-                    zh: "今天开放 • 免费 Wi-Fi 和电脑使用",
-                    ar: "مفتوح اليوم • إنترنت مجاني وكمبيوتر"
-                },
-                openNow: true,
-                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
-                hours: { "Mon - Sat": "10:00 AM - 7:00 PM", "Sunday": "Closed" },
-                aiSummary: {
-                    en: "The largest public library in the Bronx offering free computer workstations, printing, citizenship classes, tutoring, and community space.",
-                    es: "La biblioteca pública más grande del Bronx con computadoras gratuitas, clases de ciudadanía, tutorías y espacio comunitario.",
-                    vi: "Thư viện công cộng lớn nhất ở Bronx cung cấp máy tính miễn phí, in ấn, lớp học nhập tịch và kèm học tập.",
-                    zh: "布朗克斯最大的公共图书馆，提供免费电脑工作站、打印、公民入籍课程、辅导和社区空间。",
-                    ar: "أكبر مكتبة عامة في برونكس تقدم كمبيوتر مجاني، طباعة، دروس المواطنة، ومساحة مجتمعية."
-                },
-                services: {
-                    en: ["Free Public Wi-Fi & PC Labs", "Citizenship & ESL Classes", "Youth Afterschool Tutoring", "Career Workshops"],
-                    es: ["Wi-Fi y Computadoras Gratis", "Clases de Ciudadanía y ESL", "Tutorías Escolares", "Talleres de Carrera"],
-                    vi: ["Wi-Fi & Máy tính miễn phí", "Lớp học nhập tịch & ESL", "Kèm học sau giờ", "Hội thảo nghề nghiệp"],
-                    zh: ["免费 Wi-Fi 和电脑室", "公民与 ESL 课程", "课后辅导", "职业工作坊"],
-                    ar: ["إنترنت مجاني وكمبيوتر", "فصول المواطنة و ESL", "دروس تقوية للأطفال", "ورش عمل"]
-                }
-            },
-            {
-                id: "bx_food_2",
-                name: {
-                    en: "Highbridge Community Food Pantry",
-                    es: "Despensa Comunitaria de Highbridge",
-                    vi: "Kho thực phẩm Cộng đồng Highbridge",
-                    zh: "Highbridge 社区食品分发处",
-                    ar: "بنك الطعام المجتمعي في هايبريدج"
-                },
-                category: "food",
-                emoji: "🍞",
-                lat: 40.8441,
-                lng: -73.9211,
-                address: "1481 Nelson Ave, Bronx, NY 10452",
-                neighborhood: "Highbridge",
-                phone: "(718) 293-2288",
-                openStatus: {
-                    en: "Open Tue & Thu • Fresh Produce & Staples",
-                    es: "Abierto Mar y Jue • Productos Frescos",
-                    vi: "Mở cửa Thứ 3 & Thứ 5 • Thực phẩm tươi",
-                    zh: "周二和周四开放 • 新鲜农产品",
-                    ar: "مفتوح الثلاثاء والخميس • خضروات ومواد غذائية"
-                },
-                openNow: true,
-                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
-                hours: { "Tue & Thu": "8:30 AM - 1:00 PM", "Mon, Wed, Fri": "Closed" },
-                aiSummary: {
-                    en: "Neighborhood food pantry providing fresh vegetables, fruit, dairy, and canned goods to local Highbridge residents.",
-                    es: "Despensa comunitaria que ofrece verduras frescas, frutas y alimentos enlatados para los residentes de Highbridge.",
-                    vi: "Kho thực phẩm khu phố cung cấp rau tươi, trái cây, sữa và đồ hộp cho cư dân Highbridge.",
-                    zh: "社区食品分发处，为 Highbridge 居民提供新鲜蔬菜、水果、奶制品和罐头食品。",
-                    ar: "بنك طعام مجتمعي يقدم الخضروات الفواكه والمواد الغذائية لسكان هايبريدج."
-                },
-                services: {
-                    en: ["Fresh Produce Distribution", "Family Grocery Bags", "No Proof of Income Required", "Spanish Speaking Staff"],
-                    es: ["Distribución de Frutas y Verduras", "Bolsas de Comida Familiar", "Sin Prueba de Ingresos", "Personal Bilingüe"],
-                    vi: ["Phân phối rau quả tươi", "Túi thực phẩm gia đình", "Không cần bằng chứng thu nhập", "Nhân viên nói tiếng Tây Ban Nha"],
-                    zh: ["生鲜发放", "家庭生鲜包", "无需收入证明", "讲西班牙语的工作人员"],
-                    ar: ["توزيع الخضروات الفواكه", "حقائب طعام عائلية", "بدون إثبات دخل", "طاقم يتحدث الإسبانية"]
-                }
-            }
-        ];
+        /* [DB] Resources now live in Postgres and are loaded from GET /api/resources
+           on page load (see loadResourcesFromAPI). The original hard-coded list was
+           seeded into the database (page_resources.json + seed_from_page.py). */
+        let resources = [];
 
         let selectedCategoryId = "all";
         let activeSelectedResourceId = "bx_food_1";
@@ -1855,8 +1617,10 @@
         }
 
         /* INITIALIZATION WITH LEAFLET MAP */
-        window.onload = function() {
+        window.onload = async function() {
             initLeafletMap();
+            await loadResourcesFromAPI();   // [DB] fetch resources before first render
+            await loadCurrentUser();        // [DB] restore login (saved resources)
             filterLocations();
             renderFullListView();
             renderSavedListView();
@@ -2131,6 +1895,13 @@
                 savedCenterIds.push(id);
                 showToast("Saved to offline bookmarks!");
             }
+            /* [DB] Logged-in users: persist to users.saved_resources (guests stay local) */
+            if (currentUser) {
+                const adding = savedCenterIds.includes(id);
+                apiFetch('/api/saved/' + encodeURIComponent(id), { method: adding ? 'POST' : 'DELETE' })
+                    .then(data => { currentUser.saved_resources = data.saved_resources; })
+                    .catch(e => showToast("Could not sync saved locations: " + e.message));
+            }
             document.getElementById("savedCount").innerText = savedCenterIds.length;
             renderFullListView();
             renderSavedListView();
@@ -2283,6 +2054,12 @@
             };
 
             userQuestionsList.push(newEntry);
+
+            /* [DB] Store the question in the questions table */
+            apiFetch('/api/questions', { method: 'POST', body: { lang: qLang, question: qText, phone: qPhone } })
+                .then(data => { newEntry.id = data.question.id; })
+                .catch(e => showToast("Could not send question: " + e.message));
+
             showToast(qPhone ? "Submitted! Counselor will text " + qPhone : "Question submitted to Bronx team.");
             
             document.getElementById("questionTextInput").value = "";
@@ -2292,18 +2069,41 @@
 
         /* ADMIN PASSWORD PORTAL */
         function openAdminModal() {
+            /* [DB] Staff who are already logged in go straight to the dashboard */
+            if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'counselor')) {
+                openAdminDashboard();
+                return;
+            }
             openModal("adminAuthModal");
         }
 
-        function verifyAdminPassword() {
-            const pass = document.getElementById("adminPasswordInput").value;
-            if (pass === ADMIN_PASSWORD_HASH) {
-                closeModal("adminAuthModal");
-                document.getElementById("adminPasswordInput").value = "";
+        /* [DB] Load all questions from the database, then show the dashboard */
+        async function openAdminDashboard() {
+            try {
+                userQuestionsList = await apiFetch('/api/questions');
                 renderAdminQuestionsTable();
                 openModal("adminDashboardModal");
+            } catch (e) {
+                showToast(e.message);
+            }
+        }
+
+        async function verifyAdminPassword() {
+            /* [DB] Real staff login (admin or counselor account) */
+            const email = document.getElementById("adminEmailInput").value;
+            const pass = document.getElementById("adminPasswordInput").value;
+            try {
+                const data = await apiFetch('/api/login', { method: 'POST', body: { email: email, password: pass } });
+                setCurrentUser(data.user);
+                if (data.user.role !== 'admin' && data.user.role !== 'counselor') {
+                    showToast("This account does not have admin access.");
+                    return;
+                }
+                closeModal("adminAuthModal");
+                document.getElementById("adminPasswordInput").value = "";
+                await openAdminDashboard();
                 showToast("Admin portal unlocked");
-            } else {
+            } catch (e) {
                 showToast("Incorrect Admin Password.");
             }
         }
@@ -2319,27 +2119,88 @@
 
             userQuestionsList.forEach((q, idx) => {
                 const tr = document.createElement("tr");
+                /* [DB] Questions come from the public, so escape them */
                 tr.innerHTML = `
-                    <td>${q.timestamp}</td>
-                    <td>${q.lang}</td>
-                    <td>${q.question}</td>
-                    <td><strong>${q.phone}</strong></td>
+                    <td>${escapeHTML(q.timestamp)}</td>
+                    <td>${escapeHTML(q.lang)}</td>
+                    <td>${escapeHTML(q.question)}</td>
+                    <td><strong>${escapeHTML(q.phone)}</strong></td>
                     <td><button onclick="markQuestionAnswered(${idx})" style="cursor:pointer; font-size:10px; padding:2px 6px;">${q.status}</button></td>
                 `;
                 tbody.appendChild(tr);
             });
         }
 
-        function markQuestionAnswered(idx) {
-            userQuestionsList[idx].status = "✓ Answered";
+        async function markQuestionAnswered(idx) {
+            const q = userQuestionsList[idx];
+            /* [DB] Persist the status change */
+            if (q.id) {
+                try {
+                    await apiFetch('/api/questions/' + encodeURIComponent(q.id), { method: 'PATCH', body: { status: 'answered' } });
+                } catch (e) {
+                    showToast(e.message);
+                    return;
+                }
+            }
+            q.status = "✓ Answered";
             renderAdminQuestionsTable();
             showToast("Question marked as answered");
         }
 
         function clearAllAdminQuestions() {
+            /* [DB] Clears this panel's view only; questions stay in the database
+               (reopen Admin Access to reload them). */
             userQuestionsList = [];
             renderAdminQuestionsTable();
             showToast("All logged questions cleared");
+        }
+
+        /* [DB] Account login / signup for saving resources to your account */
+        let loginModeSignup = false;
+
+        function openAccountModal() {
+            if (currentUser) {
+                apiFetch('/api/logout', { method: 'POST' }).finally(() => {
+                    savedCenterIds = [];
+                    setCurrentUser(null);
+                    showToast("Logged out");
+                });
+                return;
+            }
+            openModal("loginModal");
+        }
+
+        function toggleSignupMode() {
+            loginModeSignup = !loginModeSignup;
+            document.getElementById("signupNameGroup").style.display = loginModeSignup ? "flex" : "none";
+            document.getElementById("loginModalTitle").innerText = loginModeSignup ? "👤 Create Account" : "👤 Log In";
+            document.getElementById("btnLoginSubmit").innerText = loginModeSignup ? "Create Account" : "Log In";
+            document.getElementById("btnToggleSignup").innerText = loginModeSignup ? "Have an account? Log in" : "New here? Create an account";
+        }
+
+        async function submitLogin() {
+            const email = document.getElementById("loginEmailInput").value;
+            const password = document.getElementById("loginPasswordInput").value;
+            try {
+                let data;
+                if (loginModeSignup) {
+                    const name = document.getElementById("signupNameInput").value;
+                    data = await apiFetch('/api/signup', { method: 'POST', body: { email: email, password: password, full_name: name, language_preference: currentLang } });
+                    /* keep anything a guest saved before signing up */
+                    for (const id of savedCenterIds) {
+                        const saved = await apiFetch('/api/saved/' + encodeURIComponent(id), { method: 'POST' });
+                        data.user.saved_resources = saved.saved_resources;
+                    }
+                } else {
+                    data = await apiFetch('/api/login', { method: 'POST', body: { email: email, password: password } });
+                }
+                setCurrentUser(data.user);
+                document.getElementById("loginPasswordInput").value = "";
+                closeModal("loginModal");
+                showToast("Welcome, " + data.user.full_name + "!");
+            } catch (e) {
+                showToast(e.message);
+            }
         }
 
         function toggleCategory(btn, catId) {
@@ -2391,6 +2252,13 @@
             } else {
                 filterLocations();
             }
+
+            /* [DB] Fire-and-forget search log (no location or personal data) */
+            apiFetch('/api/search-logs', { method: 'POST', body: {
+                query: query,
+                category_matched: selectedCategoryId === 'all' ? null : selectedCategoryId,
+                results_count: getFilteredResources().length
+            } }).catch(() => {});
 
             showToast("AI Search processed for: " + query);
         }
