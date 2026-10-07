@@ -1,0 +1,2408 @@
+<!DOCTYPE html> 
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Bx - For the Bronx, In the Bronx</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        :root {
+            --bg-main: #f4fbf8;             /* Light fresh mint tint */
+            --bg-card: #ffffff;             /* Pure white */
+            --bg-blue-light: #eaf5fa;        /* Soft ice blue */
+            --bg-green-light: #e8f7f0;       /* Soft mint green */
+            
+            --wireframe-border: #cbdfe7;     /* Modern subtle blue-gray border */
+            --border-green: #b2e4cb;         /* Soft green border */
+            
+            --text-main: #132a36;            /* Deep slate navy for high contrast */
+            --text-muted: #537080;           /* Soft muted teal-gray text */
+            --primary-accent: #216382;       /* Deep sky blue */
+            --green-accent: #1f8257;         /* Vibrant emerald green */
+            --green-hover: #176844;          /* Darker green hover state */
+            
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 18px;
+            --radius-pill: 9999px;
+
+            --shadow-sm: 0 2px 6px rgba(19, 42, 54, 0.04);
+            --shadow-md: 0 4px 16px rgba(19, 42, 54, 0.08);
+            --shadow-lg: 0 10px 25px rgba(19, 42, 54, 0.12);
+
+            --font-mono: "SF Mono", "Fira Code", "Courier New", monospace;
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-sans);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* 0. Intro Splash Screen Overlay */
+        .splash-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, #e8f7f0 0%, #ffffff 50%, #eaf5fa 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.8s ease, visibility 0.8s ease;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .splash-overlay.fade-out {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .splash-card {
+            background: var(--bg-card);
+            border: 2px solid var(--border-green);
+            padding: 40px 30px;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            max-width: 480px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .splash-logo-container {
+            width: 80px;
+            height: 80px;
+            background: var(--bg-green-light);
+            border: 2px dashed var(--green-accent);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+        }
+
+        .splash-title {
+            font-size: 32px;
+            font-weight: 900;
+            color: var(--green-accent);
+            letter-spacing: -0.5px;
+        }
+
+        .splash-slogan {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--primary-accent);
+            font-style: italic;
+        }
+
+        .splash-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .btn-splash-continue {
+            background: var(--green-accent);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            font-size: 14px;
+            font-weight: 800;
+            border-radius: var(--radius-pill);
+            cursor: pointer;
+            box-shadow: var(--shadow-md);
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 10px;
+        }
+
+        .btn-splash-continue:hover {
+            background: var(--green-hover);
+            transform: scale(1.03);
+        }
+
+        /* 1. Continuous Sliding Banner */
+        .wf-badge-container {
+            background: linear-gradient(90deg, #d3eef8, #d3f3e3, #d3eef8);
+            border-bottom: 1px solid var(--wireframe-border);
+            overflow: hidden;
+            white-space: nowrap;
+            position: relative;
+            padding: 7px 0;
+        }
+
+        .wf-badge-track {
+            display: inline-block;
+            white-space: nowrap;
+            animation: marquee 24s linear infinite;
+        }
+
+        .wf-badge-text {
+            display: inline-block;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: var(--text-main);
+            padding-right: 60px;
+        }
+
+        @keyframes marquee {
+            0% { transform: translateX(0%); }
+            100% { transform: translateX(-50%); }
+        }
+
+        /* 2. Glassmorphic Top Header */
+        header {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--wireframe-border);
+            padding: 14px 24px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-box {
+            width: 52px;
+            height: 52px;
+            border: 2px solid var(--border-green);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-green-light);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-sm);
+            padding: 6px;
+            transition: transform 0.2s ease;
+        }
+
+        .logo-box:hover {
+            transform: scale(1.05);
+        }
+
+        .logo-box svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .app-title {
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: -0.5px;
+            color: var(--green-accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .app-slogan {
+            font-size: 12px;
+            color: var(--primary-accent);
+            font-weight: 700;
+            font-style: italic;
+        }
+
+        .app-subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        /* Nav & Controls */
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .wf-nav {
+            display: flex;
+            background: var(--bg-blue-light);
+            padding: 4px;
+            border-radius: var(--radius-pill);
+            border: 1px solid var(--wireframe-border);
+        }
+
+        .wf-nav-btn {
+            background: transparent;
+            border: none;
+            padding: 7px 16px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            color: var(--text-muted);
+            border-radius: var(--radius-pill);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .wf-nav-btn.active {
+            background: var(--bg-card);
+            color: var(--primary-accent);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .lang-select {
+            border: 1px solid var(--wireframe-border);
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            background: var(--bg-card);
+            color: var(--text-main);
+            cursor: pointer;
+            border-radius: var(--radius-md);
+            outline: none;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .ask-ai-btn {
+            background: var(--bg-green-light);
+            border: 1.5px solid var(--border-green);
+            color: var(--green-accent);
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: var(--shadow-sm);
+            transition: background 0.2s ease;
+        }
+
+        .ask-ai-btn:hover {
+            background: #d6f2e4;
+        }
+
+        .admin-btn {
+            background: var(--bg-blue-light);
+            border: 1px solid var(--wireframe-border);
+            color: var(--primary-accent);
+            padding: 8px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            border-radius: var(--radius-md);
+        }
+
+        /* Pulsing GPS Radar Bar */
+        .radar-bar {
+            background: var(--bg-green-light);
+            border-bottom: 1px solid var(--border-green);
+            padding: 10px 24px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: var(--font-mono);
+            color: var(--green-accent);
+            font-weight: 600;
+        }
+
+        .radar-display {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .radar-sweep {
+            width: 22px;
+            height: 22px;
+            border: 2px solid var(--green-accent);
+            border-radius: 50%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .radar-sweep::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            background: var(--green-accent);
+            border-radius: 50%;
+        }
+
+        .radar-sweep::after {
+            content: "";
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid var(--green-accent);
+            animation: pulse-ring 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.6); opacity: 0.9; }
+            100% { transform: scale(1.8); opacity: 0; }
+        }
+
+        .radar-bar button {
+            background: var(--bg-card);
+            border: 1px solid var(--border-green);
+            color: var(--green-accent);
+            padding: 4px 12px;
+            border-radius: var(--radius-pill);
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        /* Hero Search Bar */
+        .search-section {
+            background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-blue-light) 100%);
+            border-bottom: 1px solid var(--wireframe-border);
+            padding: 18px 24px;
+        }
+
+        .ai-input-box {
+            display: flex;
+            max-width: 960px;
+            margin: 0 auto;
+            gap: 10px;
+            background: var(--bg-card);
+            padding: 6px;
+            border-radius: var(--radius-lg);
+            border: 2px solid var(--wireframe-border);
+            box-shadow: var(--shadow-md);
+        }
+
+        .ai-input {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            font-size: 14px;
+            outline: none;
+            background: transparent;
+            color: var(--text-main);
+        }
+
+        .ai-submit-btn {
+            background: var(--green-accent);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            border-radius: var(--radius-md);
+            white-space: nowrap;
+            transition: background 0.2s ease;
+        }
+
+        .ai-submit-btn:hover {
+            background: var(--green-hover);
+        }
+
+        .sample-queries {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            max-width: 960px;
+            margin: 12px auto 0 auto;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+
+        .sample-tag-label {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            white-space: nowrap;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .sample-chip {
+            background: var(--bg-card);
+            border: 1px solid var(--border-green);
+            color: var(--text-main);
+            padding: 5px 12px;
+            font-size: 11px;
+            font-weight: 500;
+            border-radius: var(--radius-pill);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+
+        .sample-chip:hover {
+            background: var(--bg-green-light);
+            border-color: var(--green-accent);
+        }
+
+        /* Workspace Grid Layout */
+        .workspace {
+            display: grid;
+            grid-template-columns: 320px 1fr 380px;
+            flex: 1;
+            height: calc(100vh - 250px);
+            min-height: 560px;
+            background: var(--bg-main);
+        }
+
+        @media (max-width: 1024px) {
+            .workspace {
+                grid-template-columns: 280px 1fr;
+                height: auto;
+            }
+            .detail-panel {
+                grid-column: 1 / -1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .workspace {
+                display: flex;
+                flex-direction: column;
+                height: auto;
+            }
+            .map-container {
+                height: 380px;
+            }
+        }
+
+        /* Screens */
+        .screen-view {
+            display: none;
+            flex: 1;
+            padding: 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .screen-view.active {
+            display: block;
+        }
+
+        .list-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .card-item {
+            background: var(--bg-card);
+            border: 1px solid var(--wireframe-border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: var(--shadow-sm);
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .card-item:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        /* Column 1: Filters */
+        .filters-panel {
+            background: var(--bg-card);
+            border-right: 1px solid var(--wireframe-border);
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel-title {
+            font-size: 13px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--bg-green-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .reset-btn {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--primary-accent);
+            font-weight: 700;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .filter-group-label {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+        }
+
+        .cat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .cat-btn {
+            border: 1px solid var(--wireframe-border);
+            background: var(--bg-card);
+            color: var(--text-main);
+            padding: 10px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            border-radius: var(--radius-md);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .cat-btn:hover {
+            border-color: var(--primary-accent);
+            background: var(--bg-blue-light);
+        }
+
+        .cat-btn.active {
+            background: var(--primary-accent);
+            color: white;
+            border-color: var(--primary-accent);
+        }
+
+        .checkbox-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .wf-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .wf-checkbox input {
+            cursor: pointer;
+            accent-color: var(--green-accent);
+        }
+
+        .range-slider-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .range-slider-container input[type="range"] {
+            width: 100%;
+            accent-color: var(--green-accent);
+        }
+
+        .range-val {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: var(--primary-accent);
+        }
+
+        /* Column 2: Map Container */
+        .map-container {
+            position: relative;
+            background: #e6f3f8;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--wireframe-border);
+            overflow: hidden;
+            height: 100%;
+        }
+
+        #leafletMap {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            min-height: 400px;
+            z-index: 1;
+        }
+
+        /* Custom Leaflet Pin Styling */
+        .custom-map-pin {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #ffffff;
+            border: 2.5px solid var(--green-accent);
+            border-radius: 50%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+            font-size: 16px;
+            transition: transform 0.2s ease;
+            cursor: pointer;
+        }
+
+        .custom-map-pin:hover {
+            transform: scale(1.2);
+            border-color: var(--primary-accent);
+        }
+
+        .custom-map-pin.active-pin {
+            background: var(--bg-green-light);
+            border-color: #132a36;
+            transform: scale(1.25);
+        }
+
+        .leaflet-popup-content-wrapper {
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-md);
+            font-family: var(--font-sans);
+        }
+
+        .scanner-badge {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border-green);
+            padding: 6px 12px;
+            border-radius: var(--radius-pill);
+            font-size: 10px;
+            font-family: var(--font-mono);
+            color: var(--green-accent);
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            z-index: 10;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .scan-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--green-accent);
+            border-radius: 50%;
+            animation: blink 1.2s infinite;
+        }
+
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+        /* Column 3: Resource Details */
+        .detail-panel {
+            background: var(--bg-card);
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .resource-card-header {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            border-bottom: 2px dashed var(--border-green);
+            padding-bottom: 14px;
+        }
+
+        .res-type-badge {
+            align-self: flex-start;
+            background: var(--bg-green-light);
+            border: 1px solid var(--border-green);
+            color: var(--green-accent);
+            padding: 4px 10px;
+            font-size: 10px;
+            font-family: var(--font-mono);
+            font-weight: 800;
+            text-transform: uppercase;
+            border-radius: var(--radius-pill);
+        }
+
+        .res-title {
+            font-size: 18px;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .res-distance {
+            font-size: 12px;
+            font-family: var(--font-mono);
+            color: var(--primary-accent);
+            font-weight: 600;
+        }
+
+        .ai-summary-box {
+            background: var(--bg-blue-light);
+            border: 1.5px dashed var(--wireframe-border);
+            border-radius: var(--radius-md);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .ai-badge {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            font-weight: 800;
+            text-transform: uppercase;
+            color: var(--primary-accent);
+        }
+
+        .ai-summary-text {
+            font-size: 12.5px;
+            line-height: 1.45;
+        }
+
+        .info-block {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .info-block-title {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--wireframe-border);
+            padding-bottom: 4px;
+        }
+
+        .hours-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            font-family: var(--font-mono);
+        }
+
+        .hours-table td {
+            padding: 5px 0;
+            border-bottom: 1px dotted var(--wireframe-border);
+        }
+
+        .hours-table td:last-child {
+            text-align: right;
+            font-weight: 700;
+        }
+
+        .tag-cloud {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .req-chip {
+            background: var(--bg-blue-light);
+            border: 1px solid var(--wireframe-border);
+            padding: 4px 10px;
+            font-size: 11px;
+            border-radius: var(--radius-sm);
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn-primary-wf {
+            background: var(--green-accent);
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 12px;
+            font-weight: 800;
+            text-align: center;
+            cursor: pointer;
+            border-radius: var(--radius-md);
+            text-transform: uppercase;
+            transition: background 0.2s ease;
+        }
+
+        .btn-primary-wf:hover {
+            background: var(--green-hover);
+        }
+
+        .btn-secondary-wf {
+            background: var(--bg-card);
+            color: var(--primary-accent);
+            border: 1.5px solid var(--wireframe-border);
+            padding: 10px;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: center;
+            cursor: pointer;
+            border-radius: var(--radius-md);
+            transition: background 0.2s ease;
+        }
+
+        .btn-secondary-wf:hover {
+            background: var(--bg-blue-light);
+        }
+
+        /* Modals */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(19, 42, 54, 0.45);
+            backdrop-filter: blur(4px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .wf-modal {
+            background: var(--bg-card);
+            border: 1px solid var(--wireframe-border);
+            width: 90%;
+            max-width: 520px;
+            padding: 24px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            box-shadow: var(--shadow-lg);
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--bg-green-light);
+            padding-bottom: 10px;
+        }
+
+        .modal-title { font-size: 15px; font-weight: 800; text-transform: uppercase; }
+
+        .close-modal { background: none; border: none; font-size: 20px; font-weight: bold; cursor: pointer; color: var(--text-muted); }
+
+        .wf-form-group { display: flex; flex-direction: column; gap: 6px; }
+
+        .wf-form-group label {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: var(--primary-accent);
+            text-transform: uppercase;
+        }
+
+        .wf-form-group input, .wf-form-group textarea, .wf-form-group select {
+            border: 1.5px solid var(--wireframe-border);
+            padding: 10px;
+            font-size: 13px;
+            border-radius: var(--radius-md);
+            background: var(--bg-card);
+            outline: none;
+        }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            margin-top: 10px;
+        }
+
+        .admin-table th, .admin-table td {
+            border: 1px solid var(--wireframe-border);
+            padding: 8px;
+            text-align: left;
+        }
+
+        .admin-table th { background: var(--bg-blue-light); }
+
+        /* Message Box Notification (In place of native alert) */
+        .toast-notification {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--text-main);
+            color: #ffffff;
+            padding: 12px 20px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: var(--shadow-lg);
+            z-index: 200;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            border-left: 4px solid var(--green-accent);
+            animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Footer */
+        footer {
+            background: var(--bg-card);
+            border-top: 1px solid var(--wireframe-border);
+            padding: 14px 24px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            font-size: 12px;
+            font-family: var(--font-mono);
+        }
+
+        .emergency-banner {
+            background: var(--bg-green-light);
+            border: 1px solid var(--border-green);
+            color: var(--green-accent);
+            padding: 6px 14px;
+            border-radius: var(--radius-pill);
+            font-weight: 800;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 0. SPLASH INTRO SCREEN WITH VECTOR LOGO -->
+    <div class="splash-overlay" id="splashScreen">
+        <div class="splash-card">
+            <div class="splash-logo-container">
+                <!-- Custom Open Bx SVG Logo -->
+                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="100" height="100" rx="20" fill="#e8f7f0"/>
+                    <path d="M50 15C33.4315 15 20 28.4315 20 45C20 63.5 42 82.5 48.2 87.7C49.2 88.5 50.8 88.5 51.8 87.7C58 82.5 80 63.5 80 45C80 28.4315 66.5685 15 50 15Z" fill="#1f8257"/>
+                    <circle cx="50" cy="42" r="16" fill="#ffffff"/>
+                    <path d="M42 34V50M42 34H48C50.2091 34 52 35.7909 52 38C52 40.2091 50.2091 42 48 42H42M42 42H49C51.2091 42 53 43.7909 53 46C53 48.2091 51.2091 50 49 50H42" stroke="#216382" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div class="splash-title">Open Bx</div>
+            <div class="splash-slogan">"For the Bronx, In the Bronx"</div>
+            <p class="splash-desc">
+                Welcome to Open Bx — an AI-powered accessibility platform connecting Bronx families to free, accessible food pantries, healthcare, recovery counseling, job programs, and education.
+            </p>
+            <button class="btn-splash-continue" onclick="dismissSplash()">Click to Continue</button>
+        </div>
+    </div>
+
+    <!-- 1. CONTINUOUS SLIDING BANNER -->
+    <div class="wf-badge-container">
+        <div class="wf-badge-track">
+            <span class="wf-badge-text">Bronx Community Accessibility &nbsp;•&nbsp; Free Resources & Opportunity Finder &nbsp;•&nbsp; Bronx Community Accessibility &nbsp;•&nbsp; Free Resources & Opportunity Finder</span>
+            <span class="wf-badge-text">Bronx Community Accessibility &nbsp;•&nbsp; Free Resources & Opportunity Finder &nbsp;•&nbsp; Bronx Community Accessibility &nbsp;•&nbsp; Free Resources & Opportunity Finder</span>
+        </div>
+    </div>
+
+    <!-- Header with Embedded Custom Open Bx Logo -->
+    <header>
+        <div class="brand-container">
+            <div class="logo-box" title="Open Bx Bronx Community Logo">
+                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="100" height="100" rx="20" fill="#e8f7f0"/>
+                    <path d="M50 15C33.4315 15 20 28.4315 20 45C20 63.5 42 82.5 48.2 87.7C49.2 88.5 50.8 88.5 51.8 87.7C58 82.5 80 63.5 80 45C80 28.4315 66.5685 15 50 15Z" fill="#1f8257"/>
+                    <circle cx="50" cy="42" r="16" fill="#ffffff"/>
+                    <path d="M42 34V50M42 34H48C50.2091 34 52 35.7909 52 38C52 40.2091 50.2091 42 48 42H42M42 42H49C51.2091 42 53 43.7909 53 46C53 48.2091 51.2091 50 49 50H42" stroke="#216382" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div>
+                <div class="app-title">
+                    Open Bx
+                    <span style="font-size: 11px; background: var(--bg-blue-light); color: var(--primary-accent); padding: 2px 8px; border-radius: var(--radius-pill); border: 1px solid var(--wireframe-border);">📍 Bronx, NY</span>
+                </div>
+                <div class="app-slogan" id="txtSlogan">"For the Bronx, In the Bronx"</div>
+                <div class="app-subtitle" id="txtSubtitle">Community Resource & Opportunity Finder</div>
+            </div>
+        </div>
+
+        <div class="header-controls">
+            <div class="wf-nav">
+                <button class="wf-nav-btn active" id="navMap" onclick="switchScreen('map')">Map View</button>
+                <button class="wf-nav-btn" id="navList" onclick="switchScreen('list')">List View</button>
+                <button class="wf-nav-btn" id="navSaved" onclick="switchScreen('saved')">Saved (<span id="savedCount">1</span>)</button>
+            </div>
+
+            <select class="lang-select" id="languageSelect" onchange="changeLanguage(this.value)">
+                <option value="en">🌐 English (US)</option>
+                <option value="es">🌐 Español (Spanish)</option>
+                <option value="vi">🌐 Tiếng Việt (Vietnamese)</option>
+                <option value="zh">🌐 中文 (Chinese)</option>
+                <option value="ar">🌐 العربية (Arabic)</option>
+            </select>
+
+            <button class="ask-ai-btn" id="btnSubmitQuestion" onclick="openModal('questionModal')">
+                ❓ Ask Question
+            </button>
+
+            <button class="admin-btn" onclick="openAdminModal()">🔒 Admin Access</button>
+        </div>
+    </header>
+
+    <!-- Radar & GPS Location Status -->
+    <div class="radar-bar">
+        <div class="radar-display">
+            <div class="radar-sweep"></div>
+            <span id="locationText">Radar Active: Center calculated near Fordham Road, Bronx NY</span>
+        </div>
+        <button onclick="requestUserLocation()" id="btnDetectGPS">🎯 Detect Device GPS</button>
+    </div>
+
+    <!-- Hero Search -->
+    <section class="search-section">
+        <div class="ai-input-box">
+            <input type="text" id="aiQueryInput" class="ai-input" placeholder="Ask AI: e.g. 'POTS food pantry Fordham Road', 'Samaritan Daytop rehab'">
+            <button class="ai-submit-btn" id="btnAISearch" onclick="processAIQuery()">[ AI Search ]</button>
+        </div>
+        <div class="sample-queries">
+            <span class="sample-tag-label" id="lblShortcuts">Bronx AI Shortcuts:</span>
+            <span class="sample-chip" onclick="applySampleQuery('POTS Food Pantry Webster Ave')">"🍞 POTS Pantry"</span>
+            <span class="sample-chip" onclick="applySampleQuery('Samaritan Daytop Village Rehab Grand Concourse')">"🌱 Samaritan Rehab"</span>
+            <span class="sample-chip" onclick="applySampleQuery('BronxWorks Employment Center Mott Haven')">"💼 BronxWorks Job Center"</span>
+            <span class="sample-chip" onclick="applySampleQuery('NYC Health Lincoln Hospital South Bronx')">"🩺 Lincoln Hospital"</span>
+            <span class="sample-chip" onclick="applySampleQuery('Hostos Community College Education')">"📚 Hostos College"</span>
+        </div>
+    </section>
+
+    <!-- SCREEN 1: MAP WORKSPACE -->
+    <main class="workspace" id="screenMapWorkspace">
+        <aside class="filters-panel">
+            <div class="panel-title">
+                <span id="lblFilterTitle">Filter Resources</span>
+                <button class="reset-btn" id="btnReset" onclick="resetFilters()">Reset All</button>
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-group-label" id="lblCategory">Resource Category</span>
+                <div class="cat-grid">
+                    <button class="cat-btn active" onclick="toggleCategory(this, 'all')"><span>🌐</span> <span id="catLabel_all">All Needs</span></button>
+                    <button class="cat-btn" onclick="toggleCategory(this, 'food')"><span>🍞</span> <span id="catLabel_food">Food Pantry</span></button>
+                    <button class="cat-btn" onclick="toggleCategory(this, 'health')"><span>🩺</span> <span id="catLabel_health">Healthcare</span></button>
+                    <button class="cat-btn" onclick="toggleCategory(this, 'rehab')"><span>🌱</span> <span id="catLabel_rehab">Rehab/Care</span></button>
+                    <button class="cat-btn" onclick="toggleCategory(this, 'education')"><span>📚</span> <span id="catLabel_education">Education</span></button>
+                    <button class="cat-btn" onclick="toggleCategory(this, 'jobs')"><span>💼</span> <span id="catLabel_jobs">Employment</span></button>
+                    <button class="cat-btn" onclick="toggleCategory(this, 'clothing')"><span>👕</span> <span id="catLabel_clothing">Clothing</span></button>
+                    <button class="cat-btn" onclick="toggleCategory(this, 'community')"><span>🤝</span> <span id="catLabel_community">Community</span></button>
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-group-label" id="lblRequirements">Requirements & Access</span>
+                <div class="checkbox-list">
+                    <label class="wf-checkbox"><input type="checkbox" id="chkNoID" onchange="filterLocations()"><span id="lblNoID">No Photo ID Required</span></label>
+                    <label class="wf-checkbox"><input type="checkbox" id="chkNoProofIncome" onchange="filterLocations()"><span id="lblNoIncome">No Proof of Income Needed</span></label>
+                    <label class="wf-checkbox"><input type="checkbox" id="chkWalkIn" onchange="filterLocations()"><span id="lblWalkIn">Walk-ins Allowed</span></label>
+                    <label class="wf-checkbox"><input type="checkbox" id="chkSpanish" onchange="filterLocations()"><span id="lblSpanish">Multilingual Staff On-Site</span></label>
+                    <label class="wf-checkbox"><input type="checkbox" id="chkTransit" onchange="filterLocations()"><span id="lblTransit">Near Public Transit</span></label>
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-group-label" id="lblDistance">Maximum Distance</span>
+                <div class="range-slider-container">
+                    <input type="range" id="distanceRange" min="1" max="25" value="10" oninput="updateDistanceLabel(this.value)">
+                    <div class="range-val" id="distanceVal">10 miles radius</div>
+                </div>
+            </div>
+        </aside>
+
+        <section class="map-container">
+            <div class="scanner-badge">
+                <div class="scan-dot"></div>
+                <span id="lblAIScanner">AI Auto-Scanner Active • Hours & Location Verified</span>
+            </div>
+
+            <div id="leafletMap"></div>
+        </section>
+
+        <aside class="detail-panel" id="detailPanel"></aside>
+    </main>
+
+    <!-- SCREEN 2: LIST VIEW -->
+    <section class="screen-view" id="screenListView">
+        <h2 style="font-size: 20px; font-weight: 800;" id="lblListHeader">📋 All Bronx Verified Resources</h2>
+        <p style="font-size: 13px; color: var(--text-muted);" id="lblListSub">Browse all available food, medical, recovery, and job programs in card format.</p>
+        <div class="list-grid" id="fullCardListContainer"></div>
+    </section>
+
+    <!-- SCREEN 3: SAVED VIEW -->
+    <section class="screen-view" id="screenSavedView">
+        <h2 style="font-size: 20px; font-weight: 800;" id="lblSavedHeader">⭐ Saved Centers & Programs</h2>
+        <p style="font-size: 13px; color: var(--text-muted);" id="lblSavedSub">Access bookmarked Bronx centers offline or share them with family.</p>
+        <div class="list-grid" id="savedCardListContainer"></div>
+    </section>
+
+    <!-- Modal 1: Question Form -->
+    <div class="modal-overlay" id="questionModal">
+        <div class="wf-modal">
+            <div class="modal-header">
+                <div class="modal-title" id="lblModalTitle">[ Ask A Question / Receive SMS Response ]</div>
+                <button class="close-modal" onclick="closeModal('questionModal')">✕</button>
+            </div>
+
+            <p style="font-size: 13px; line-height: 1.45; color: var(--text-muted);" id="lblModalDesc">
+                Need extra guidance? Submit your question and optional phone number. Our AI or Bronx counselors will text you an answer!
+            </p>
+
+            <div class="wf-form-group">
+                <label id="lblFormLang">Preferred Language</label>
+                <select id="questionLang">
+                    <option value="English">English</option>
+                    <option value="Spanish">Español</option>
+                    <option value="Vietnamese">Tiếng Việt</option>
+                    <option value="Chinese">中文</option>
+                    <option value="Arabic">العربية</option>
+                </select>
+            </div>
+
+            <div class="wf-form-group">
+                <label id="lblFormQuestion">Your Question or Resource Request</label>
+                <textarea id="questionTextInput" rows="4" placeholder="Type what you need help with in plain text..." style="resize: vertical;"></textarea>
+            </div>
+
+            <div class="wf-form-group">
+                <label id="lblFormPhone">Mobile Phone Number (To receive text response)</label>
+                <input type="text" id="questionPhoneInput" placeholder="(718) 000-0000">
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+                <button class="btn-secondary-wf" onclick="closeModal('questionModal')">Cancel</button>
+                <button class="btn-primary-wf" onclick="submitUserQuestion()">Submit Request</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Admin Password Portal -->
+    <div class="modal-overlay" id="adminAuthModal">
+        <div class="wf-modal">
+            <div class="modal-header">
+                <div class="modal-title">🔒 Admin Access Portal</div>
+                <button class="close-modal" onclick="closeModal('adminAuthModal')">✕</button>
+            </div>
+
+            <div class="wf-form-group">
+                <label>Enter Admin Password</label>
+                <input type="password" id="adminPasswordInput" placeholder="Password required...">
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+                <button class="btn-secondary-wf" onclick="closeModal('adminAuthModal')">Cancel</button>
+                <button class="btn-primary-wf" onclick="verifyAdminPassword()">Unlock Portal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Admin Questions Dashboard -->
+    <div class="modal-overlay" id="adminDashboardModal">
+        <div class="wf-modal" style="max-width: 650px;">
+            <div class="modal-header">
+                <div class="modal-title">📋 Admin Question Log & Phone Requests</div>
+                <button class="close-modal" onclick="closeModal('adminDashboardModal')">✕</button>
+            </div>
+
+            <p style="font-size: 12px; color: var(--text-muted);">
+                Viewing all stored user questions, selected languages, and phone numbers.
+            </p>
+
+            <div id="adminTableContainer">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Language</th>
+                            <th>Question</th>
+                            <th>Phone #</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminTableBody"></tbody>
+                </table>
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: space-between; margin-top: 10px;">
+                <button class="btn-secondary-wf" onclick="clearAllAdminQuestions()" style="color: red; border-color: red;">Clear All Logged Questions</button>
+                <button class="btn-primary-wf" onclick="closeModal('adminDashboardModal')">Close Panel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Message Box -->
+    <div class="toast-notification" id="toastMessage">
+        <span id="toastText">Notification message</span>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-info">
+            <div class="footer-item">
+                <span>📞 NYC 311 / 211 Community Help Hotline</span>
+            </div>
+            <div class="footer-item">
+                <span id="lblFooterLocation">📍 Open Bx: Verified Centers in The Bronx, NY</span>
+            </div>
+        </div>
+
+        <div class="emergency-banner">
+            🚨 Emergency Hotline: 911 (Medical) | 988 (Crisis & Mental Health)
+        </div>
+    </footer>
+
+    <script>
+        const translations = {
+            en: {
+                slogan: '"For the Bronx, In the Bronx"',
+                subtitle: 'Community Resource & Opportunity Finder',
+                navMap: 'Map View',
+                navList: 'List View',
+                askBtn: '❓ Ask Question',
+                shortcuts: 'Bronx AI Shortcuts:',
+                filterTitle: 'Filter Resources',
+                category: 'Resource Category',
+                reqs: 'Requirements & Access',
+                noID: 'No Photo ID Required',
+                noIncome: 'No Proof of Income Needed',
+                walkIn: 'Walk-ins Allowed',
+                spanish: 'Multilingual Staff On-Site',
+                transit: 'Near Public Transit',
+                distance: 'Maximum Distance',
+                scanner: 'AI Auto-Scanner Active • Hours & Location Verified',
+                listHeader: '📋 All Bronx Verified Resources',
+                listSub: 'Browse all available food, medical, recovery, and job programs in card format.',
+                savedHeader: '⭐ Saved Centers & Programs',
+                savedSub: 'Access bookmarked Bronx centers offline or share them with family.',
+                getDirections: '🗺️ Get Transit Directions',
+                submitToCenter: '💬 Contact / Ask Question',
+                servicesProvided: 'Services Provided',
+                whatYouNeed: 'Requirements & Access',
+                hoursTitle: 'Operating Hours',
+                categories: {
+                    all: 'All Needs',
+                    food: 'Food Pantry',
+                    health: 'Healthcare',
+                    rehab: 'Rehab/Care',
+                    education: 'Education',
+                    jobs: 'Employment',
+                    clothing: 'Clothing',
+                    community: 'Community'
+                }
+            },
+            es: {
+                slogan: '"Para el Bronx, En el Bronx"',
+                subtitle: 'Buscador de Recursos y Oportunidades Comunitarias',
+                navMap: 'Vista del Mapa',
+                navList: 'Vista de Lista',
+                askBtn: '❓ Hacer Pregunta',
+                shortcuts: 'Atajos de IA del Bronx:',
+                filterTitle: 'Filtrar Recursos',
+                category: 'Categoría de Recursos',
+                reqs: 'Requisitos y Acceso',
+                noID: 'Sin Identificación con Foto',
+                noIncome: 'Sin Comprobante de Ingresos',
+                walkIn: 'Se Permiten Entradas Sin Cita',
+                spanish: 'Personal Multilingüe en Sitio',
+                transit: 'Cerca del Transporte Público',
+                distance: 'Distancia Máxima',
+                scanner: 'Escáner de IA Activo • Horarios y Ubicación Verificados',
+                listHeader: '📋 Todos los Recursos Verificados del Bronx',
+                listSub: 'Explore programas de alimentos, médicos, de recuperación y empleo en tarjetas.',
+                savedHeader: '⭐ Centros y Programas Guardados',
+                savedSub: 'Acceda a los centros del Bronx guardados en línea o compártalos.',
+                getDirections: '🗺️ Obtener Direcciones de Tránsito',
+                submitToCenter: '💬 Contactar / Hacer Pregunta',
+                servicesProvided: 'Servicios Ofrecidos',
+                whatYouNeed: 'Requisitos y Acceso',
+                hoursTitle: 'Horarios de Atención',
+                categories: {
+                    all: 'Todas las Necesidades',
+                    food: 'Despensa de Comida',
+                    health: 'Atención Médica',
+                    rehab: 'Rehabilitación',
+                    education: 'Educación',
+                    jobs: 'Empleo',
+                    clothing: 'Ropa',
+                    community: 'Comunidad'
+                }
+            },
+            vi: {
+                slogan: '"Vì Bronx, Tại Bronx"',
+                subtitle: 'Công cụ tìm kiếm tài nguyên & cơ hội cộng đồng',
+                navMap: 'Bản đồ',
+                navList: 'Danh sách',
+                askBtn: '❓ Đặt câu hỏi',
+                shortcuts: 'Phím tắt AI Bronx:',
+                filterTitle: 'Lọc tài nguyên',
+                category: 'Danh mục tài nguyên',
+                reqs: 'Yêu cầu & Truy cập',
+                noID: 'Không cần giấy tờ có ảnh',
+                noIncome: 'Không cần chứng minh thu nhập',
+                walkIn: 'Chấp nhận đến trực tiếp',
+                spanish: 'Có nhân viên đa ngôn ngữ',
+                transit: 'Gần giao thông công cộng',
+                distance: 'Khoảng cách tối đa',
+                scanner: 'Máy quét AI đang hoạt động • Đã xác minh giờ & vị trí',
+                listHeader: '📋 Tất cả tài nguyên đã xác minh tại Bronx',
+                listSub: 'Xem tất cả các chương trình thực phẩm, y tế, phục hồi và việc làm.',
+                savedHeader: '⭐ Trung tâm & Chương trình đã lưu',
+                savedSub: 'Truy cập các địa điểm Bronx đã lưu ngoại tuyến hoặc chia sẻ.',
+                getDirections: '🗺️ Chỉ đường đi lại',
+                submitToCenter: '💬 Liên hệ / Đặt câu hỏi',
+                servicesProvided: 'Dịch vụ cung cấp',
+                whatYouNeed: 'Yêu cầu & Truy cập',
+                hoursTitle: 'Giờ làm việc',
+                categories: {
+                    all: 'Tất cả nhu cầu',
+                    food: 'Kho thực phẩm',
+                    health: 'Chăm sóc y tế',
+                    rehab: 'Cai nghiện/Phục hồi',
+                    education: 'Giáo dục',
+                    jobs: 'Việc làm',
+                    clothing: 'Quần áo',
+                    community: 'Cộng đồng'
+                }
+            },
+            zh: {
+                slogan: '"为了布朗克斯，在布朗克斯"',
+                subtitle: '社区资源与机遇搜索器',
+                navMap: '地图视图',
+                navList: '列表视图',
+                askBtn: '❓ 提问',
+                shortcuts: '布朗克斯 AI 快捷方式:',
+                filterTitle: '筛选资源',
+                category: '资源类别',
+                reqs: '要求与准入',
+                noID: '无需带照片的身份证件',
+                noIncome: '无需收入证明',
+                walkIn: '允许直接前往',
+                spanish: '现场多语言工作人员',
+                transit: '靠近公共交通',
+                distance: '最大距离',
+                scanner: 'AI 自动扫描仪活跃 • 营业时间和位置已核实',
+                listHeader: '📋 所有经核实的布朗克斯资源',
+                listSub: '以卡片形式浏览所有可用的食品、医疗、康复和就业项目。',
+                savedHeader: '⭐ 已保存的中心与项目',
+                savedSub: '离线访问已标记的布朗克斯中心或与家人分享。',
+                getDirections: '🗺️ 获取交通路线',
+                submitToCenter: '💬 联系 / 提出问题',
+                servicesProvided: '提供服务',
+                whatYouNeed: '要求与准入',
+                hoursTitle: '营业时间',
+                categories: {
+                    all: '所有需求',
+                    food: '食品分发',
+                    health: '医疗保健',
+                    rehab: '康复护理',
+                    education: '教育培训',
+                    jobs: '就业求职',
+                    clothing: '衣物援助',
+                    community: '社区服务'
+                }
+            },
+            ar: {
+                slogan: '"من أجل برونكس، في برونكس"',
+                subtitle: 'مستكشف الموارد والفرص المجتمعية',
+                navMap: 'عرض الخريطة',
+                navList: 'عرض القائمة',
+                askBtn: '❓ طرح سؤال',
+                shortcuts: 'اختصارات الذكاء الاصطناعي:',
+                filterTitle: 'تصفية الموارد',
+                category: 'فئة الموارد',
+                reqs: 'المتطلبات والإمكانية',
+                noID: 'لا تتطلب هویة مصورة',
+                noIncome: 'لا يتطلب إثبات دخل',
+                walkIn: 'يُسمح بالدخول المباشر',
+                spanish: 'موظفون يتحدثون لغات متعددة',
+                transit: 'قريب من وسائل النقل العامة',
+                distance: 'الحد الأقصى للمسافة',
+                scanner: 'ماسح الذكاء الاصطناعي نشط • تم التحقق من المواعيد والموقع',
+                listHeader: '📋 جميع الموارد المعتمدة في برونكس',
+                listSub: 'تصفح جميع برامج الغذاء، الرعاية الصحية، التعافي والتوظيف.',
+                savedHeader: '⭐ المراكز والبرامج المحفوظة',
+                savedSub: 'الوصول إلى مراكز برونكس المحفوظة بدون إنترنت أو مشاركتها.',
+                getDirections: '🗺️ الحصول على الاتجاهات',
+                submitToCenter: '💬 التواصل / طرح سؤال',
+                servicesProvided: 'الخدمات المقدمة',
+                whatYouNeed: 'المتطلبات والإمكانية',
+                hoursTitle: 'ساعات العمل',
+                categories: {
+                    all: 'جميع الاحتياجات',
+                    food: 'بنك الطعام',
+                    health: 'الرعاية الصحية',
+                    rehab: 'التعافي',
+                    education: 'التعليم',
+                    jobs: 'الوظائف',
+                    clothing: 'الملابس',
+                    community: 'المجتمع'
+                }
+            }
+        };
+
+        let userCoords = { lat: 40.8600, lng: -73.8900 }; // Default Fordham Center
+        let userNeighborhood = "Fordham, Bronx NY";
+        let savedCenterIds = ["bx_food_1"];
+        let currentLang = "en";
+        let maxDistanceMiles = 10;
+
+        let leafletMap = null;
+        let markersGroup = null;
+        let radiusCircle = null;
+
+        const ADMIN_PASSWORD_HASH = "447walesave";
+
+        let userQuestionsList = [
+            {
+                timestamp: "09/01 10:15 AM",
+                lang: "Spanish",
+                question: "Necesito comida de emergencia para mi familia cerca de Mott Haven.",
+                phone: "(718) 555-0199",
+                status: "Pending"
+            }
+        ];
+
+        /* Extended Bronx Resources with Exact Geographic Coordinates */
+        const resources = [
+            {
+                id: "bx_food_1",
+                name: {
+                    en: "POTS (Part of the Solution) Community Center",
+                    es: "Centro Comunitario POTS (Parte de la Solución)",
+                    vi: "Trung tâm Cộng đồng POTS",
+                    zh: "POTS (解决方案的一部分) 社区中心",
+                    ar: "مركز POTS المجتمعي"
+                },
+                category: "food",
+                emoji: "🍞",
+                lat: 40.8653,
+                lng: -73.8887,
+                address: "2759 Webster Ave, Bronx, NY 10458",
+                neighborhood: "Fordham / Bedford Park",
+                phone: "(718) 220-4892",
+                openStatus: {
+                    en: "Open Today • Hot Meals & Food Pantry",
+                    es: "Abierto Hoy • Comida Caliente y Despensa",
+                    vi: "Mở cửa hôm nay • Bữa ăn nóng & Kho thực phẩm",
+                    zh: "今天开放 • 热食和食品分发处",
+                    ar: "مفتوح اليوم • وجبات ساخنة وبنك طعام"
+                },
+                openNow: true,
+                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
+                hours: { "Mon - Sat": "9:00 AM - 3:30 PM", "Sunday": "Closed" },
+                aiSummary: {
+                    en: "Top match in Fordham for free hot meals, emergency grocery boxes, shower facilities, legal aid, and social work services. No ID required.",
+                    es: "La mejor opción en Fordham para comidas calientes gratuitas, cajas de alimentos de emergencia, duchas, ayuda legal y servicios sociales. No requiere ID.",
+                    vi: "Lựa chọn hàng đầu tại Fordham cho các bữa ăn nóng miễn phí, hộp thực phẩm khẩn cấp, vòi sen, trợ giúp pháp lý. Không cần ID.",
+                    zh: "Fordham 免费热食、紧急食品包、淋浴设施、法律援助和社会工作服务的最佳选择。无需身份证。",
+                    ar: "أفضل خيار في فوردهام للحصول على وجبات ساخنة مجانية، وصناديق طعام طارئة، ومرافق استحمام، ومساعدة قانونية. لا تتطلب بطاقة هوية."
+                },
+                services: {
+                    en: ["Hot Meals Dining Room", "Food Pantry Boxes", "Showers & Mail Services", "Legal & Case Management"],
+                    es: ["Comedor de Comidas Calientes", "Cajas de Despensa de Alimentos", "Servicios de Ducha y Correo", "Gestión Legal y de Casos"],
+                    vi: ["Phòng ăn bữa ăn nóng", "Hộp thực phẩm", "Dịch vụ tắm & Thư từ", "Trợ giúp pháp lý"],
+                    zh: ["热食餐厅", "食品分发包", "淋浴和邮寄服务", "法律和案件管理"],
+                    ar: ["قاعة الوجبات الساخنة", "صناديق بنك الطعام", "خدمات الاستحمام والبريد", "المساعدة القانونية"]
+                }
+            },
+            {
+                id: "bx_rehab_1",
+                name: {
+                    en: "Samaritan Daytop Village - Grand Concourse Recovery Center",
+                    es: "Samaritan Daytop Village - Centro de Recuperación Grand Concourse",
+                    vi: "Trung tâm Phục hồi Samaritan Daytop Village",
+                    zh: "Samaritan Daytop Village - Grand Concourse 康复中心",
+                    ar: "قرية ساماريتان دايتوب - مركز التعافي"
+                },
+                category: "rehab",
+                emoji: "🌱",
+                lat: 40.8492,
+                lng: -73.9084,
+                address: "1910 Grand Concourse, Bronx, NY 10453",
+                neighborhood: "Grand Concourse / Tremont",
+                phone: "(718) 294-2700",
+                openStatus: {
+                    en: "Open 24/7 • Outpatient & Counseling",
+                    es: "Abierto 24/7 • Pacientes Externos y Asesoramiento",
+                    vi: "Mở cửa 24/7 • Ngoại trú & Tư vấn",
+                    zh: "24/7 开放 • 门诊与咨询",
+                    ar: "مفتوح 24/7 • العيادات الخارجية والاستشارات"
+                },
+                openNow: true,
+                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
+                hours: { "Monday - Sunday": "24 Hours / 7 Days" },
+                aiSummary: {
+                    en: "Confidential recovery programs, opioid treatment, outpatient substance abuse counseling, and peer support groups. Walk-in intakes welcome.",
+                    es: "Programas confidenciales de recuperación, tratamiento de opioides, asesoramiento ambulatorio y grupos de apoyo. Se aceptan pacientes sin cita.",
+                    vi: "Các chương trình phục hồi bảo mật, điều trị nghiện, tư vấn ngoại trú và nhóm hỗ trợ đồng đẳng. Hoan nghênh đến trực tiếp.",
+                    zh: "保密的康复项目、鸦片类药物治疗、门诊戒瘾咨询和同伴支持小组。欢迎直接前往。",
+                    ar: "برامج تعافي سرية، علاج الإدمان، استشارات خارجية، ومجموعات دعم. نرحب بالدخول بدون موعد."
+                },
+                services: {
+                    en: ["24/7 Crisis Intake", "Outpatient Recovery", "Peer Support Groups", "Family Counseling"],
+                    es: ["Entrada de Crisis 24/7", "Recuperación Ambulatoria", "Grupos de Apoyo", "Asesoramiento Familiar"],
+                    vi: ["Tiếp nhận khủng hoảng 24/7", "Phục hồi ngoại trú", "Nhóm hỗ trợ đồng đẳng", "Tư vấn gia đình"],
+                    zh: ["24/7 危机接收", "门诊康复", "同伴支持小组", "家庭咨询"],
+                    ar: ["استقبال الأزمات 24/7", "التعافي الخارجي", "مجموعات الدعم", "الاستشارات العائلية"]
+                }
+            },
+            {
+                id: "bx_emp_1",
+                name: {
+                    en: "BronxWorks Workforce Development Center",
+                    es: "Centro de Desarrollo Laboral BronxWorks",
+                    vi: "Trung tâm Phát triển Lực lượng Lao động BronxWorks",
+                    zh: "BronxWorks 劳动力发展中心",
+                    ar: "مركز BronxWorks لتطوير القوى العاملة"
+                },
+                category: "jobs",
+                emoji: "💼",
+                lat: 40.8148,
+                lng: -73.9103,
+                address: "630 Jackson Ave, Bronx, NY 10455",
+                neighborhood: "Mott Haven",
+                phone: "(718) 292-2300",
+                openStatus: {
+                    en: "Open Mon-Fri • Career Services",
+                    es: "Abierto Lun-Vie • Servicios de Carrera",
+                    vi: "Mở cửa Thứ 2 - Thứ 6 • Dịch vụ sự nghiệp",
+                    zh: "周一至周五开放 • 职业服务",
+                    ar: "مفتوح من الاثنين إلى الجمعة • خدمات التطوير المهني"
+                },
+                openNow: true,
+                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
+                hours: { "Mon - Fri": "9:00 AM - 5:00 PM", "Sat - Sun": "Closed" },
+                aiSummary: {
+                    en: "Free job placement assistance, resume workshops, career coaching, computer literacy training, and youth employment connection.",
+                    es: "Asistencia gratuita para colocación laboral, talleres de currículum, entrenamiento informático y programas de empleo juvenil.",
+                    vi: "Hỗ trợ tìm việc miễn phí, hội thảo viết CV, huấn luyện nghề nghiệp, đào tạo tin học và kết nối việc làm cho thanh thiếu niên.",
+                    zh: "免费就业推荐协助、简历写作工作坊、职业辅导、计算机技能培训和青年就业对接。",
+                    ar: "مساعدة مجانية في التوظيف، ورش عمل للسيرة الذاتية، تدريب على الكمبيوتر، وتوظيف الشباب."
+                },
+                services: {
+                    en: ["Job Search Assistance", "Resume Building", "Interview Prep", "Youth Career Placement"],
+                    es: ["Búsqueda de Empleo", "Creación de Currículum", "Preparación de Entrevistas", "Empleo Juvenil"],
+                    vi: ["Hỗ trợ tìm việc", "Xây dựng CV", "Luyện phỏng vấn", "Việc làm thanh niên"],
+                    zh: ["求职协助", "简历制作", "面试准备", "青年职业推荐"],
+                    ar: ["المساعدة في البحث عن عمل", "بناء السيرة الذاتية", "التحضير للمقابلات", "توظيف الشباب"]
+                }
+            },
+            {
+                id: "bx_health_1",
+                name: {
+                    en: "NYC Health + Hospitals / Lincoln",
+                    es: "NYC Health + Hospitals / Lincoln",
+                    vi: "Bệnh viện NYC Health + Hospitals / Lincoln",
+                    zh: "纽约市健康+医院 / 林肯医院",
+                    ar: "مستشفى لينكولن - نيويورك هيلث"
+                },
+                category: "health",
+                emoji: "🩺",
+                lat: 40.8176,
+                lng: -73.9242,
+                address: "234 E 149th St, Bronx, NY 10451",
+                neighborhood: "Mott Haven / South Bronx",
+                phone: "(718) 579-5000",
+                openStatus: {
+                    en: "Open 24/7 • Emergency & Primary Care",
+                    es: "Abierto 24/7 • Emergencias y Atención Primaria",
+                    vi: "Mở cửa 24/7 • Cấp cứu & Chăm sóc ban đầu",
+                    zh: "24/7 开放 • 急诊与急救",
+                    ar: "مفتوح 24/7 • الطوارئ والرعاية الأولية"
+                },
+                openNow: true,
+                requirements: { noID: false, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
+                hours: { "Monday - Sunday": "24 Hours / 7 Days" },
+                aiSummary: {
+                    en: "Major public hospital in the South Bronx providing full health coverage regardless of immigration status or ability to pay.",
+                    es: "Hospital público principal en el Sur del Bronx que brinda cobertura de salud completa independientemente del estado migratorio o capacidad de pago.",
+                    vi: "Bệnh viện công lớn tại South Bronx cung cấp dịch vụ y tế đầy đủ bất kể tình trạng di trú hay khả năng chi trả.",
+                    zh: "南布朗克斯的主要公立医院，无论移民身份或支付能力如何，均提供全面医疗服务。",
+                    ar: "مستشفى عمومی رئيسي في جنوب برونكس يقدم رعاية صحية كاملة بغض النظر عن وضع الهجرة أو القدرة على الدفع."
+                },
+                services: {
+                    en: ["24/7 Emergency Room", "Pediatric Care", "Financial Rx Assistance", "MTA 2/4/5 Subway Nearby"],
+                    es: ["Sala de Emergencias 24/7", "Atención Pediátrica", "Asistencia Financiera para Recetas", "Metro MTA 2/4/5 Cerca"],
+                    vi: ["Phòng cấp cứu 24/7", "Chăm sóc nhi khoa", "Hỗ trợ tài chính đơn thuốc", "Gần tàu điện ngầm 2/4/5"],
+                    zh: ["24/7 急诊室", "儿科护理", "处方药财务资助", "靠近 MTA 2/4/5 地铁"],
+                    ar: ["غرفة طوارئ 24/7", "رعاية الأطفال", "مساعدة مالية للأدوية", "قريب من مترو الأنفاق"]
+                }
+            },
+            {
+                id: "bx_edu_1",
+                name: {
+                    en: "Hostos Community College - Adult Learning",
+                    es: "Colegio Comunitario Hostos - Educación de Adultos",
+                    vi: "Trường Cao đẳng Cộng đồng Hostos - Giáo dục người lớn",
+                    zh: "Hostos 社区学院 - 成人教育",
+                    ar: "كلية هوستوس المجتمعية - تعليم الكبار"
+                },
+                category: "education",
+                emoji: "📚",
+                lat: 40.8136,
+                lng: -73.9108,
+                address: "564 Jackson Ave, Bronx, NY 10454",
+                neighborhood: "Mott Haven",
+                phone: "(718) 518-6656",
+                openStatus: {
+                    en: "Open Mon-Sat • Free Adult Education",
+                    es: "Abierto Lun-Sáb • Educación Gratuita para Adultos",
+                    vi: "Mở cửa Thứ 2 - Thứ 7 • Giáo dục người lớn miễn phí",
+                    zh: "周一至周六开放 • 免费成人教育",
+                    ar: "مفتوح من الاثنين إلى السبت • تعليم مجاني للكبار"
+                },
+                openNow: true,
+                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
+                hours: { "Mon - Thu": "9:00 AM - 8:00 PM", "Fri - Sat": "9:00 AM - 2:00 PM" },
+                aiSummary: {
+                    en: "Free HSE/GED test prep, English as a Second Language (ESL), college prep courses, and vocational career certification.",
+                    es: "Preparación gratuita para el examen HSE/GED, Inglés como Segundo Idioma (ESL) y certificaciones vocacionales.",
+                    vi: "Luyện thi HSE/GED miễn phí, tiếng Anh ESL, các khóa học chuẩn bị vào cao đẳng và chứng chỉ nghề nghiệp.",
+                    zh: "免费 HSE/GED 备考、英语 ESL 课程、大学预科课程和职业技能认证。",
+                    ar: "تحضير مجاني لاختبارات GED/HSE، تعليم اللغة الإنجليزية ESL، ودورات مهنية."
+                },
+                services: {
+                    en: ["Free HSE / GED Prep", "ESL Classes", "Computer Training", "MTA 2/4/5 Subway Accessible"],
+                    es: ["Preparación HSE / GED Gratuita", "Clases de ESL", "Entrenamiento en Computación", "Accesible por Metro"],
+                    vi: ["Luyện thi HSE / GED", "Lớp học ESL", "Đào tạo máy tính", "Gần tàu điện ngầm"],
+                    zh: ["免费 HSE / GED 备考", "ESL 英语班", "计算机培训", "靠近地铁"],
+                    ar: ["تحضير مجاني لـ GED", "فصول لغة إنجليزية", "تدريب كمبيوتر", "مترو قريب"]
+                }
+            },
+            {
+                id: "bx_health_2",
+                name: {
+                    en: "St. Barnabas Hospital (SBH Health System)",
+                    es: "Hospital St. Barnabas (Sistema de Salud SBH)",
+                    vi: "Bệnh viện St. Barnabas",
+                    zh: "圣巴拿巴医院 (SBH 医疗系统)",
+                    ar: "مستشفى سانت بارناباس"
+                },
+                category: "health",
+                emoji: "🩺",
+                lat: 40.8524,
+                lng: -73.8926,
+                address: "4422 3rd Ave, Bronx, NY 10457",
+                neighborhood: "Belmont / Tremont",
+                phone: "(718) 960-9000",
+                openStatus: {
+                    en: "Open 24/7 • Community Care & ER",
+                    es: "Abierto 24/7 • Atención Comunitario y Urgencias",
+                    vi: "Mở cửa 24/7 • Cấp cứu & Y tế cộng đồng",
+                    zh: "24/7 开放 • 社区医疗与急诊",
+                    ar: "مفتوح 24/7 • العيادات والطوارئ"
+                },
+                openNow: true,
+                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
+                hours: { "Monday - Sunday": "24 Hours / 7 Days" },
+                aiSummary: {
+                    en: "Comprehensive safety-net hospital providing urgent care, dental clinic, mental health services, and multilingual support.",
+                    es: "Hospital comunitario integral que ofrece urgencias, clínica dental, atención psicológica y personal bilingüe.",
+                    vi: "Bệnh viện an sinh xã hội toàn diện cung cấp dịch vụ chăm sóc khẩn cấp, nha khoa, tâm thần và hỗ trợ đa ngôn ngữ.",
+                    zh: "综合性安全网医院，提供急诊护理、牙科诊所、心理健康服务和多语言支持。",
+                    ar: "مستشفى شامل يقدم رعاية عاجلة، عيادة أسنان، خدمات الصحة النفسية، ودعم بلغات متعددة."
+                },
+                services: {
+                    en: ["24/7 Trauma Center", "Dental & Mental Health", "Bilingual Navigators", "Walk-in Urgent Clinic"],
+                    es: ["Centro de Traumatología", "Salud Mental y Dental", "Orientadores Bilingües", "Clínica de Urgencias"],
+                    vi: ["Trung tâm cấp cứu", "Nha khoa & Tâm thần", "Hướng dẫn viên song ngữ", "Phòng khám trực tiếp"],
+                    zh: ["24/7 创伤中心", "牙科与心理健康", "双语服务人员", "免预约门诊"],
+                    ar: ["مركز طوارئ 24/7", "عيادة الأسنان والصحة النفسية", "مرشدون بليغون", "عيادة عاجلة"]
+                }
+            },
+            {
+                id: "bx_edu_2",
+                name: {
+                    en: "NYPL Bronx Library Center",
+                    es: "Centro de Bibliotecas del Bronx de la NYPL",
+                    vi: "Trung tâm Thư viện Bronx NYPL",
+                    zh: "纽约公共图书馆布朗克斯中心",
+                    ar: "مركز مكتبة برونكس العامة"
+                },
+                category: "education",
+                emoji: "📚",
+                lat: 40.8625,
+                lng: -73.8938,
+                address: "310 E Kingsbridge Rd, Bronx, NY 10458",
+                neighborhood: "Kingsbridge / Fordham",
+                phone: "(718) 579-4244",
+                openStatus: {
+                    en: "Open Today • Free Wi-Fi & Tech Access",
+                    es: "Abierto Hoy • Wi-Fi Gratis y Tecnología",
+                    vi: "Mở cửa hôm nay • Wi-Fi & Máy tính miễn phí",
+                    zh: "今天开放 • 免费 Wi-Fi 和电脑使用",
+                    ar: "مفتوح اليوم • إنترنت مجاني وكمبيوتر"
+                },
+                openNow: true,
+                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
+                hours: { "Mon - Sat": "10:00 AM - 7:00 PM", "Sunday": "Closed" },
+                aiSummary: {
+                    en: "The largest public library in the Bronx offering free computer workstations, printing, citizenship classes, tutoring, and community space.",
+                    es: "La biblioteca pública más grande del Bronx con computadoras gratuitas, clases de ciudadanía, tutorías y espacio comunitario.",
+                    vi: "Thư viện công cộng lớn nhất ở Bronx cung cấp máy tính miễn phí, in ấn, lớp học nhập tịch và kèm học tập.",
+                    zh: "布朗克斯最大的公共图书馆，提供免费电脑工作站、打印、公民入籍课程、辅导和社区空间。",
+                    ar: "أكبر مكتبة عامة في برونكس تقدم كمبيوتر مجاني، طباعة، دروس المواطنة، ومساحة مجتمعية."
+                },
+                services: {
+                    en: ["Free Public Wi-Fi & PC Labs", "Citizenship & ESL Classes", "Youth Afterschool Tutoring", "Career Workshops"],
+                    es: ["Wi-Fi y Computadoras Gratis", "Clases de Ciudadanía y ESL", "Tutorías Escolares", "Talleres de Carrera"],
+                    vi: ["Wi-Fi & Máy tính miễn phí", "Lớp học nhập tịch & ESL", "Kèm học sau giờ", "Hội thảo nghề nghiệp"],
+                    zh: ["免费 Wi-Fi 和电脑室", "公民与 ESL 课程", "课后辅导", "职业工作坊"],
+                    ar: ["إنترنت مجاني وكمبيوتر", "فصول المواطنة و ESL", "دروس تقوية للأطفال", "ورش عمل"]
+                }
+            },
+            {
+                id: "bx_food_2",
+                name: {
+                    en: "Highbridge Community Food Pantry",
+                    es: "Despensa Comunitaria de Highbridge",
+                    vi: "Kho thực phẩm Cộng đồng Highbridge",
+                    zh: "Highbridge 社区食品分发处",
+                    ar: "بنك الطعام المجتمعي في هايبريدج"
+                },
+                category: "food",
+                emoji: "🍞",
+                lat: 40.8441,
+                lng: -73.9211,
+                address: "1481 Nelson Ave, Bronx, NY 10452",
+                neighborhood: "Highbridge",
+                phone: "(718) 293-2288",
+                openStatus: {
+                    en: "Open Tue & Thu • Fresh Produce & Staples",
+                    es: "Abierto Mar y Jue • Productos Frescos",
+                    vi: "Mở cửa Thứ 3 & Thứ 5 • Thực phẩm tươi",
+                    zh: "周二和周四开放 • 新鲜农产品",
+                    ar: "مفتوح الثلاثاء والخميس • خضروات ومواد غذائية"
+                },
+                openNow: true,
+                requirements: { noID: true, noProofIncome: true, walkIn: true, spanish: true, wheelchair: true, transit: true },
+                hours: { "Tue & Thu": "8:30 AM - 1:00 PM", "Mon, Wed, Fri": "Closed" },
+                aiSummary: {
+                    en: "Neighborhood food pantry providing fresh vegetables, fruit, dairy, and canned goods to local Highbridge residents.",
+                    es: "Despensa comunitaria que ofrece verduras frescas, frutas y alimentos enlatados para los residentes de Highbridge.",
+                    vi: "Kho thực phẩm khu phố cung cấp rau tươi, trái cây, sữa và đồ hộp cho cư dân Highbridge.",
+                    zh: "社区食品分发处，为 Highbridge 居民提供新鲜蔬菜、水果、奶制品和罐头食品。",
+                    ar: "بنك طعام مجتمعي يقدم الخضروات الفواكه والمواد الغذائية لسكان هايبريدج."
+                },
+                services: {
+                    en: ["Fresh Produce Distribution", "Family Grocery Bags", "No Proof of Income Required", "Spanish Speaking Staff"],
+                    es: ["Distribución de Frutas y Verduras", "Bolsas de Comida Familiar", "Sin Prueba de Ingresos", "Personal Bilingüe"],
+                    vi: ["Phân phối rau quả tươi", "Túi thực phẩm gia đình", "Không cần bằng chứng thu nhập", "Nhân viên nói tiếng Tây Ban Nha"],
+                    zh: ["生鲜发放", "家庭生鲜包", "无需收入证明", "讲西班牙语的工作人员"],
+                    ar: ["توزيع الخضروات الفواكه", "حقائب طعام عائلية", "بدون إثبات دخل", "طاقم يتحدث الإسبانية"]
+                }
+            }
+        ];
+
+        let selectedCategoryId = "all";
+        let activeSelectedResourceId = "bx_food_1";
+
+        function getDistanceInMiles(lat1, lon1, lat2, lon2) {
+            const R = 3958.8; // Radius of Earth in miles
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        /* INITIALIZATION WITH LEAFLET MAP */
+        window.onload = function() {
+            initLeafletMap();
+            filterLocations();
+            renderFullListView();
+            renderSavedListView();
+            startAILocationScanner();
+        };
+
+        function initLeafletMap() {
+            leafletMap = L.map('leafletMap', {
+                center: [userCoords.lat, userCoords.lng],
+                zoom: 13,
+                zoomControl: true
+            });
+
+            /* 
+               KEYLESS MAP TILE PROVIDER:
+               Uses Esri World Street Map vector/raster tiles requiring no API keys,
+               signups, or OAuth credentials, completely bypassing HTTP 403 errors.
+            */
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012',
+                maxZoom: 19
+            }).addTo(leafletMap);
+
+            markersGroup = L.layerGroup().addTo(leafletMap);
+        }
+
+        /* SPLASH DISMISS FUNCTION */
+        function dismissSplash() {
+            const splash = document.getElementById("splashScreen");
+            splash.classList.add("fade-out");
+            setTimeout(() => {
+                splash.style.display = "none";
+            }, 800);
+        }
+
+        /* TOAST NOTIFICATION HELPER */
+        function showToast(msg) {
+            const toast = document.getElementById("toastMessage");
+            const text = document.getElementById("toastText");
+            text.innerText = msg;
+            toast.style.display = "flex";
+            setTimeout(() => {
+                toast.style.display = "none";
+            }, 3500);
+        }
+
+        /* GPS RADAR DETECTOR WITH USER VISUAL CIRCLE */
+        function requestUserLocation() {
+            const statusText = document.getElementById("locationText");
+            if (navigator.geolocation) {
+                statusText.innerText = "⏳ Radar Scanning: Contacting device GPS satellites...";
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        userCoords = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        userNeighborhood = "Device GPS Coordinates Active";
+                        statusText.innerText = `📍 Radar Circle Active: Device Location Locked (${userCoords.lat.toFixed(4)}, ${userCoords.lng.toFixed(4)})`;
+                        filterLocations();
+                        showToast("GPS position acquired!");
+                    },
+                    (error) => {
+                        userCoords = { lat: 40.8600, lng: -73.8900 };
+                        userNeighborhood = "Fordham / Bedford Park, Bronx NY";
+                        statusText.innerText = "📍 Radar Circle Active: Highlighted Fordham Road Community Circle";
+                        filterLocations();
+                        showToast("Using default Fordham location");
+                    }
+                );
+            } else {
+                statusText.innerText = "📍 Radar Circle Active: Highlighted Bronx Community Region";
+                filterLocations();
+            }
+        }
+
+        /* AI SCANNER TIMER */
+        function startAILocationScanner() {
+            setInterval(() => {
+                const scannerLabel = document.getElementById("lblAIScanner");
+                const timeStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                const langDict = translations[currentLang] || translations['en'];
+                scannerLabel.innerText = langDict.scanner + " (" + timeStr + ")";
+            }, 30000);
+        }
+
+        /* SCREEN SWITCHER */
+        function switchScreen(screenName) {
+            document.getElementById("screenMapWorkspace").style.display = "none";
+            document.getElementById("screenListView").classList.remove("active");
+            document.getElementById("screenSavedView").classList.remove("active");
+
+            document.getElementById("navMap").classList.remove("active");
+            document.getElementById("navList").classList.remove("active");
+            document.getElementById("navSaved").classList.remove("active");
+
+            if (screenName === 'map') {
+                document.getElementById("screenMapWorkspace").style.display = "grid";
+                document.getElementById("navMap").classList.add("active");
+                setTimeout(() => { leafletMap.invalidateSize(); }, 200);
+            } else if (screenName === 'list') {
+                document.getElementById("screenListView").classList.add("active");
+                document.getElementById("navList").classList.add("active");
+                renderFullListView();
+            } else if (screenName === 'saved') {
+                document.getElementById("screenSavedView").classList.add("active");
+                document.getElementById("navSaved").classList.add("active");
+                renderSavedListView();
+            }
+        }
+
+        function getFilteredResources() {
+            const noID = document.getElementById("chkNoID").checked;
+            const noIncome = document.getElementById("chkNoProofIncome").checked;
+            const walkIn = document.getElementById("chkWalkIn").checked;
+
+            return resources.filter(r => {
+                // Calculate real-time distance in miles from active center
+                const dist = getDistanceInMiles(userCoords.lat, userCoords.lng, r.lat, r.lng);
+                r.calculatedDistance = dist;
+
+                if (dist > maxDistanceMiles) return false;
+                if (selectedCategoryId !== 'all' && r.category !== selectedCategoryId) return false;
+                if (noID && !r.requirements.noID) return false;
+                if (noIncome && !r.requirements.noProofIncome) return false;
+                if (walkIn && !r.requirements.walkIn) return false;
+                return true;
+            });
+        }
+
+        function filterLocations() {
+            const filtered = getFilteredResources();
+
+            // Clear previous map markers
+            if (markersGroup) {
+                markersGroup.clearLayers();
+            }
+
+            // Render Distance Coverage Radius Circle
+            if (radiusCircle) {
+                leafletMap.removeLayer(radiusCircle);
+            }
+            radiusCircle = L.circle([userCoords.lat, userCoords.lng], {
+                color: '#1f8257',
+                fillColor: '#b2e4cb',
+                fillOpacity: 0.15,
+                radius: maxDistanceMiles * 1609.34 // convert miles to meters
+            }).addTo(leafletMap);
+
+            const bounds = L.latLngBounds();
+            bounds.extend([userCoords.lat, userCoords.lng]);
+
+            // Add center marker
+            const userIcon = L.divIcon({
+                className: 'custom-map-pin',
+                html: '🎯',
+                iconSize: [36, 36],
+                iconAnchor: [18, 18]
+            });
+            L.marker([userCoords.lat, userCoords.lng], { icon: userIcon })
+                .bindPopup("<b>Your Center Location</b><br>" + userNeighborhood)
+                .addTo(markersGroup);
+
+            // Add markers for all filtered options
+            filtered.forEach(res => {
+                const resName = res.name[currentLang] || res.name['en'];
+                const isActive = (res.id === activeSelectedResourceId);
+
+                const customIcon = L.divIcon({
+                    className: `custom-map-pin ${isActive ? 'active-pin' : ''}`,
+                    html: res.emoji,
+                    iconSize: isActive ? [42, 42] : [34, 34],
+                    iconAnchor: isActive ? [21, 21] : [17, 17]
+                });
+
+                const marker = L.marker([res.lat, res.lng], { icon: customIcon });
+                
+                marker.bindPopup(`
+                    <div style="font-size: 13px; font-weight: 800;">${res.emoji} ${resName}</div>
+                    <div style="font-size: 11px; color: #537080;">📍 ${res.address}</div>
+                    <div style="font-size: 11px; font-weight: bold; color: #1f8257; margin-top: 4px;">${res.calculatedDistance.toFixed(1)} miles away</div>
+                    <button onclick="selectResource('${res.id}')" style="margin-top:6px; background:#1f8257; color:white; border:none; padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer; width:100%;">View Details</button>
+                `);
+
+                marker.on('click', () => {
+                    selectResource(res.id);
+                });
+
+                marker.addTo(markersGroup);
+                bounds.extend([res.lat, res.lng]);
+            });
+
+            // Adjust view to show all filtered pins
+            if (filtered.length > 0) {
+                leafletMap.fitBounds(bounds, { padding: [40, 40] });
+                if (!filtered.some(r => r.id === activeSelectedResourceId)) {
+                    selectResource(filtered[0].id);
+                } else {
+                    renderResourceDetails(activeSelectedResourceId);
+                }
+            } else {
+                renderResourceDetails(null);
+            }
+        }
+
+        /* RENDER FULL LIST VIEW IN CURRENT LANGUAGE */
+        function renderFullListView() {
+            const container = document.getElementById("fullCardListContainer");
+            container.innerHTML = "";
+            const dict = translations[currentLang] || translations['en'];
+
+            resources.forEach(res => {
+                const resName = res.name[currentLang] || res.name['en'];
+                const resSummary = res.aiSummary[currentLang] || res.aiSummary['en'];
+
+                const card = document.createElement("div");
+                card.className = "card-item";
+                card.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <span class="res-type-badge">${res.emoji} ${res.category.toUpperCase()}</span>
+                        <button onclick="toggleBookmark('${res.id}')" style="background:none; border:none; cursor:pointer; font-size:18px;">
+                            ${savedCenterIds.includes(res.id) ? '⭐' : '☆'}
+                        </button>
+                    </div>
+                    <h3 style="font-size:16px; font-weight:800;">${resName}</h3>
+                    <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-muted);">📍 ${res.address}</div>
+                    <p style="font-size:12.5px; line-height:1.4;">${resSummary}</p>
+                    <button class="btn-primary-wf" onclick="selectResource('${res.id}'); switchScreen('map');">
+                        ${dict.getDirections}
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        /* RENDER SAVED LIST VIEW */
+        function renderSavedListView() {
+            const container = document.getElementById("savedCardListContainer");
+            container.innerHTML = "";
+            const dict = translations[currentLang] || translations['en'];
+
+            const savedItems = resources.filter(r => savedCenterIds.includes(r.id));
+
+            if(savedItems.length === 0) {
+                container.innerHTML = `<p style="grid-column: 1/-1; font-size: 13px; color: var(--text-muted);">No saved centers yet. Click the star icon on any resource card to save it here!</p>`;
+                return;
+            }
+
+            savedItems.forEach(res => {
+                const resName = res.name[currentLang] || res.name['en'];
+
+                const card = document.createElement("div");
+                card.className = "card-item";
+                card.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <span class="res-type-badge">${res.emoji} ${res.category.toUpperCase()}</span>
+                        <button onclick="toggleBookmark('${res.id}')" style="background:none; border:none; cursor:pointer; font-size:18px;">⭐</button>
+                    </div>
+                    <h3 style="font-size:16px; font-weight:800;">${resName}</h3>
+                    <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-muted);">📍 ${res.address}</div>
+                    <button class="btn-primary-wf" onclick="selectResource('${res.id}'); switchScreen('map');">${dict.getDirections}</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function toggleBookmark(id) {
+            if(savedCenterIds.includes(id)) {
+                savedCenterIds = savedCenterIds.filter(i => i !== id);
+                showToast("Removed from saved locations");
+            } else {
+                savedCenterIds.push(id);
+                showToast("Saved to offline bookmarks!");
+            }
+            document.getElementById("savedCount").innerText = savedCenterIds.length;
+            renderFullListView();
+            renderSavedListView();
+        }
+
+        /* SELECT RESOURCE & UPDATE SIDEBAR + MAP CENTER */
+        function selectResource(id) {
+            activeSelectedResourceId = id;
+            const res = resources.find(r => r.id === id);
+
+            if (res && leafletMap) {
+                leafletMap.setView([res.lat, res.lng], 15, { animate: true });
+            }
+
+            renderResourceDetails(id);
+        }
+
+        /* RENDER RESOURCE DETAILS IN SIDEBAR */
+        function renderResourceDetails(id) {
+            const res = resources.find(r => r.id === id);
+            const panel = document.getElementById("detailPanel");
+            const dict = translations[currentLang] || translations['en'];
+
+            if(!res) {
+                panel.innerHTML = `<p style="padding: 20px; font-size: 12px; color: var(--text-muted);">No matching verified Bronx resources found for current category, requirements, and distance.</p>`;
+                return;
+            }
+
+            const resName = res.name[currentLang] || res.name['en'];
+            const resStatus = res.openStatus[currentLang] || res.openStatus['en'];
+            const resSummary = res.aiSummary[currentLang] || res.aiSummary['en'];
+            const resServices = res.services[currentLang] || res.services['en'];
+            const dist = res.calculatedDistance ? res.calculatedDistance.toFixed(1) : getDistanceInMiles(userCoords.lat, userCoords.lng, res.lat, res.lng).toFixed(1);
+
+            let directionsUrl = `https://www.google.com/maps/dir/?api=1&origin=${userCoords.lat},${userCoords.lng}&destination=${encodeURIComponent(res.address)}&travelmode=transit`;
+
+            panel.innerHTML = `
+                <div class="resource-card-header">
+                    <span class="res-type-badge">${res.emoji} [ ${res.category.toUpperCase()} RESOURCE ]</span>
+                    <h2 class="res-title">${resName}</h2>
+                    <div class="res-distance">📍 ${res.address}</div>
+                    <div style="font-size: 11px; font-weight: 700; color: var(--text-muted);">Neighborhood: ${res.neighborhood} • <strong>${dist} miles away</strong></div>
+                    <div style="font-size: 12px; font-weight: 700; font-family: var(--font-mono); color: var(--green-accent);">
+                        • ${resStatus}
+                    </div>
+                </div>
+
+                <div class="ai-summary-box">
+                    <div class="ai-badge">🤖 [ AI Bronx Match Insights ]</div>
+                    <div class="ai-summary-text">${resSummary}</div>
+                </div>
+
+                <div class="info-block">
+                    <span class="info-block-title">${dict.servicesProvided}</span>
+                    <div class="tag-cloud">
+                        ${resServices.map(s => `<span class="req-chip">✓ ${s}</span>`).join('')}
+                    </div>
+                </div>
+
+                <div class="info-block">
+                    <span class="info-block-title">${dict.whatYouNeed}</span>
+                    <div class="tag-cloud">
+                        <span class="req-chip">${res.requirements.noID ? '✅ ' + dict.noID : '⚠️ Photo ID Required'}</span>
+                        <span class="req-chip">${res.requirements.noProofIncome ? '✅ ' + dict.noIncome : 'ℹ️ Income Verification'}</span>
+                        <span class="req-chip">${res.requirements.walkIn ? '🚶 ' + dict.walkIn : '📅 Appt Required'}</span>
+                        <span class="req-chip">${res.requirements.spanish ? '🗣️ ' + dict.spanish : '🗣️ English Primary'}</span>
+                    </div>
+                </div>
+
+                <div class="info-block">
+                    <span class="info-block-title">${dict.hoursTitle}</span>
+                    <table class="hours-table">
+                        ${Object.entries(res.hours).map(([day, hrs]) => `
+                            <tr><td>${day}</td><td>${hrs}</td></tr>
+                        `).join('')}
+                    </table>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="btn-primary-wf" onclick="window.open('${directionsUrl}', '_blank')">
+                        ${dict.getDirections}
+                    </button>
+                    <button class="btn-secondary-wf" onclick="openModal('questionModal')">
+                        ${dict.submitToCenter}
+                    </button>
+                </div>
+            `;
+        }
+
+        /* LANGUAGE TRANSLATION SWITCHER */
+        function changeLanguage(langCode) {
+            currentLang = langCode;
+            const langData = translations[langCode] || translations['en'];
+
+            document.getElementById("txtSlogan").innerText = langData.slogan;
+            document.getElementById("txtSubtitle").innerText = langData.subtitle;
+            document.getElementById("navMap").innerText = langData.navMap;
+            document.getElementById("navList").innerText = langData.navList;
+            document.getElementById("btnSubmitQuestion").innerText = langData.askBtn;
+            document.getElementById("lblShortcuts").innerText = langData.shortcuts;
+            document.getElementById("lblFilterTitle").innerText = langData.filterTitle;
+            document.getElementById("lblCategory").innerText = langData.category;
+            document.getElementById("lblRequirements").innerText = langData.reqs;
+            document.getElementById("lblNoID").innerText = langData.noID;
+            document.getElementById("lblNoIncome").innerText = langData.noIncome;
+            document.getElementById("lblWalkIn").innerText = langData.walkIn;
+            document.getElementById("lblSpanish").innerText = langData.spanish;
+            document.getElementById("lblTransit").innerText = langData.transit;
+            document.getElementById("lblDistance").innerText = langData.distance;
+            document.getElementById("lblAIScanner").innerText = langData.scanner;
+            document.getElementById("lblListHeader").innerText = langData.listHeader;
+            document.getElementById("lblListSub").innerText = langData.listSub;
+            document.getElementById("lblSavedHeader").innerText = langData.savedHeader;
+            document.getElementById("lblSavedSub").innerText = langData.savedSub;
+
+            if (langData.categories) {
+                document.getElementById("catLabel_all").innerText = langData.categories.all;
+                document.getElementById("catLabel_food").innerText = langData.categories.food;
+                document.getElementById("catLabel_health").innerText = langData.categories.health;
+                document.getElementById("catLabel_rehab").innerText = langData.categories.rehab;
+                document.getElementById("catLabel_education").innerText = langData.categories.education;
+                document.getElementById("catLabel_jobs").innerText = langData.categories.jobs;
+                document.getElementById("catLabel_clothing").innerText = langData.categories.clothing;
+                document.getElementById("catLabel_community").innerText = langData.categories.community;
+            }
+
+            renderResourceDetails(activeSelectedResourceId);
+            renderFullListView();
+            renderSavedListView();
+            showToast("Language changed to " + langCode.toUpperCase());
+        }
+
+        /* USER QUESTION SUBMISSION */
+        function submitUserQuestion() {
+            const qText = document.getElementById("questionTextInput").value;
+            const qPhone = document.getElementById("questionPhoneInput").value;
+            const qLang = document.getElementById("questionLang").value;
+
+            if (!qText.trim()) {
+                showToast("Please enter a question or request first.");
+                return;
+            }
+
+            const newEntry = {
+                timestamp: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+                lang: qLang,
+                question: qText,
+                phone: qPhone || "None Provided",
+                status: "Pending Response"
+            };
+
+            userQuestionsList.push(newEntry);
+            showToast(qPhone ? "Submitted! Counselor will text " + qPhone : "Question submitted to Bronx team.");
+            
+            document.getElementById("questionTextInput").value = "";
+            document.getElementById("questionPhoneInput").value = "";
+            closeModal("questionModal");
+        }
+
+        /* ADMIN PASSWORD PORTAL */
+        function openAdminModal() {
+            openModal("adminAuthModal");
+        }
+
+        function verifyAdminPassword() {
+            const pass = document.getElementById("adminPasswordInput").value;
+            if (pass === ADMIN_PASSWORD_HASH) {
+                closeModal("adminAuthModal");
+                document.getElementById("adminPasswordInput").value = "";
+                renderAdminQuestionsTable();
+                openModal("adminDashboardModal");
+                showToast("Admin portal unlocked");
+            } else {
+                showToast("Incorrect Admin Password.");
+            }
+        }
+
+        function renderAdminQuestionsTable() {
+            const tbody = document.getElementById("adminTableBody");
+            tbody.innerHTML = "";
+
+            if(userQuestionsList.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">No questions logged yet.</td></tr>`;
+                return;
+            }
+
+            userQuestionsList.forEach((q, idx) => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${q.timestamp}</td>
+                    <td>${q.lang}</td>
+                    <td>${q.question}</td>
+                    <td><strong>${q.phone}</strong></td>
+                    <td><button onclick="markQuestionAnswered(${idx})" style="cursor:pointer; font-size:10px; padding:2px 6px;">${q.status}</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function markQuestionAnswered(idx) {
+            userQuestionsList[idx].status = "✓ Answered";
+            renderAdminQuestionsTable();
+            showToast("Question marked as answered");
+        }
+
+        function clearAllAdminQuestions() {
+            userQuestionsList = [];
+            renderAdminQuestionsTable();
+            showToast("All logged questions cleared");
+        }
+
+        function toggleCategory(btn, catId) {
+            document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedCategoryId = catId;
+            filterLocations();
+        }
+
+        function updateDistanceLabel(val) {
+            maxDistanceMiles = parseFloat(val);
+            document.getElementById("distanceVal").innerText = `${val} miles radius`;
+            filterLocations();
+        }
+
+        function resetFilters() {
+            document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.cat-btn')[0].classList.add('active');
+            selectedCategoryId = 'all';
+
+            document.getElementById("chkNoID").checked = false;
+            document.getElementById("chkNoProofIncome").checked = false;
+            document.getElementById("chkWalkIn").checked = false;
+            document.getElementById("chkSpanish").checked = false;
+            document.getElementById("chkTransit").checked = false;
+
+            document.getElementById("distanceRange").value = 10;
+            maxDistanceMiles = 10;
+            updateDistanceLabel(10);
+            filterLocations();
+            showToast("Filters reset to default");
+        }
+
+        /* AI QUERY SEARCH SIMULATOR */
+        function processAIQuery() {
+            const query = document.getElementById("aiQueryInput").value.toLowerCase();
+            if (!query.trim()) return;
+
+            if (query.includes('food') || query.includes('pantry') || query.includes('pots')) {
+                toggleCategory(document.querySelectorAll('.cat-btn')[1], 'food');
+            } else if (query.includes('rehab') || query.includes('recovery') || query.includes('samaritan')) {
+                toggleCategory(document.querySelectorAll('.cat-btn')[3], 'rehab');
+            } else if (query.includes('health') || query.includes('lincoln') || query.includes('barnabas')) {
+                toggleCategory(document.querySelectorAll('.cat-btn')[2], 'health');
+            } else if (query.includes('ged') || query.includes('hostos') || query.includes('library')) {
+                toggleCategory(document.querySelectorAll('.cat-btn')[4], 'education');
+            } else if (query.includes('job') || query.includes('bronxworks')) {
+                toggleCategory(document.querySelectorAll('.cat-btn')[5], 'jobs');
+            } else {
+                filterLocations();
+            }
+
+            showToast("AI Search processed for: " + query);
+        }
+
+        function applySampleQuery(text) {
+            document.getElementById("aiQueryInput").value = text;
+            processAIQuery();
+        }
+
+        /* MODAL CONTROLS */
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    </script>
+</body>
+</html>
